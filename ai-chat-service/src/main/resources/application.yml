@@ -1,0 +1,16 @@
+server:
+  port: 8083
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:kafka:9092}
+    producer:
+      properties:
+        spring.json.add.type.headers: false
+security:
+  jwt:
+    secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

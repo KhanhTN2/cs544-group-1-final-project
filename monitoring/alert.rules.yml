@@ -1,0 +1,11 @@
+groups:
+  - name: system-error-events
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "A service is down and should emit a SystemErrorEvent."
