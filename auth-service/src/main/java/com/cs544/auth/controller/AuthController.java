@@ -1,6 +1,7 @@
 package com.cs544.auth.controller;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,6 +41,30 @@ public class AuthController {
             return ResponseEntity.ok(new AuthResponse(token, user.getRole()));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(new ErrorResponse(ex.getMessage()));
+        }
+    }
+
+    @GetMapping("/validate")
+    public ResponseEntity<?> validate(@org.springframework.web.bind.annotation.RequestHeader org.springframework.http.HttpHeaders headers) {
+        String header = headers.getFirst("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).body(new ErrorResponse("Missing token"));
+        }
+        String token = header.substring(7);
+        try {
+            var claims = jwtUtil.parse(token);
+            String username = claims.getSubject();
+            String role = claims.get("role", String.class);
+            if (username == null || role == null) {
+                return ResponseEntity.status(401).body(new ErrorResponse("Invalid token"));
+            }
+            User user = userService.requireUser(username);
+            if (!user.getRole().equals(role)) {
+                return ResponseEntity.status(401).body(new ErrorResponse("Invalid token"));
+            }
+            return ResponseEntity.ok(new AuthResponse(token, role));
+        } catch (Exception ex) {
+            return ResponseEntity.status(401).body(new ErrorResponse("Invalid token"));
         }
     }
 

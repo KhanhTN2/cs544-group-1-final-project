@@ -44,4 +44,9 @@ public class UserService {
         }
         return user;
     }
+
+    public User requireUser(String username) {
+        return userRepository.findFirstByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found."));
+    }
 }

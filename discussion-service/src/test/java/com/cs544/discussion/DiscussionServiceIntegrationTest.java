@@ -60,14 +60,14 @@ class DiscussionServiceIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
                 .body("{\"releaseId\":\"rel-1\",\"author\":\"sam\",\"message\":\"hello\"}")
-                .post("http://localhost:" + port + "/api/discussions")
+                .post("http://localhost:" + port + "/tasks/task-1/comments")
                 .then()
                 .statusCode(200)
                 .body("author", equalTo("sam"));
 
         given()
                 .header("Authorization", "Bearer " + token)
-                .get("http://localhost:" + port + "/api/discussions/rel-1")
+                .get("http://localhost:" + port + "/tasks/task-1/comments")
                 .then()
                 .statusCode(200)
                 .body("size()", equalTo(1));

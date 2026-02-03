@@ -3,6 +3,7 @@ package com.cs544.notification.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,6 +31,7 @@ public class NotificationController {
     }
 
     @PostMapping("/system-error")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SystemErrorAlert> publishSystemError(@RequestBody SystemErrorEvent request) {
         producer.publishSystemError(request);
         SystemErrorAlert alert = streamService.recordError(request);
@@ -37,6 +39,7 @@ public class NotificationController {
     }
 
     @GetMapping("/last")
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public ResponseEntity<SystemErrorAlert> getLastErrorEvent() {
         if (streamService.getLastError() == null) {
             return ResponseEntity.noContent().build();
@@ -45,11 +48,13 @@ public class NotificationController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public ResponseEntity<List<SystemErrorAlert>> listAlerts() {
         return ResponseEntity.ok(streamService.getRecentErrors());
     }
 
     @GetMapping(path = "/stream", produces = "text/event-stream")
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public SseEmitter streamAlerts() {
         return streamService.createEmitter();
     }

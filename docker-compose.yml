@@ -46,10 +46,13 @@ services:
     depends_on:
       - kafka
       - mongodb
+      - auth-service
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       MONGODB_URI: mongodb://mongodb:27017/releases
       JWT_SECRET: 0123456789abcdef0123456789abcdef
+      AUTH_VALIDATE: true
+      AUTH_VALIDATE_URL: http://auth-service:8086
     ports:
       - "8081:8081"
 
@@ -59,10 +62,13 @@ services:
     depends_on:
       - kafka
       - mongodb
+      - auth-service
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       MONGODB_URI: mongodb://mongodb:27017/discussions
       JWT_SECRET: 0123456789abcdef0123456789abcdef
+      AUTH_VALIDATE: true
+      AUTH_VALIDATE_URL: http://auth-service:8086
     ports:
       - "8082:8082"
 
@@ -71,9 +77,12 @@ services:
     container_name: ai-chat-service
     depends_on:
       - kafka
+      - auth-service
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       JWT_SECRET: 0123456789abcdef0123456789abcdef
+      AUTH_VALIDATE: true
+      AUTH_VALIDATE_URL: http://auth-service:8086
     ports:
       - "8083:8083"
 
@@ -84,6 +93,7 @@ services:
       - kafka
       - mongodb
       - mailhog
+      - auth-service
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       MONGODB_URI: mongodb://mongodb:27017/notifications
@@ -99,6 +109,8 @@ services:
       DEV2_EMAIL: ${DEV2_EMAIL:-dev-2@cs544.local}
       SYSTEM_ALERT_RECIPIENTS: ${SYSTEM_ALERT_RECIPIENTS:-release-manager@cs544.local}
       JWT_SECRET: 0123456789abcdef0123456789abcdef
+      AUTH_VALIDATE: true
+      AUTH_VALIDATE_URL: http://auth-service:8086
     ports:
       - "8084:8084"
   mailhog:

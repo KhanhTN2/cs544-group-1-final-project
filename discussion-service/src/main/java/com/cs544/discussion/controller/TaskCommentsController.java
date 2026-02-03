@@ -3,6 +3,7 @@ package com.cs544.discussion.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +32,7 @@ public class TaskCommentsController {
     }
 
     @PostMapping("/tasks/{taskId}/comments")
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public ResponseEntity<?> createTaskComment(
             @PathVariable String taskId,
             @RequestBody TaskCommentRequest request
@@ -57,6 +59,7 @@ public class TaskCommentsController {
     }
 
     @PostMapping("/comments/{commentId}/reply")
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public ResponseEntity<?> replyToComment(
             @PathVariable String commentId,
             @RequestBody ReplyRequest request
@@ -86,6 +89,7 @@ public class TaskCommentsController {
     }
 
     @GetMapping("/tasks/{taskId}/comments")
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public ResponseEntity<List<DiscussionMessage>> listTaskComments(@PathVariable String taskId) {
         return ResponseEntity.ok(repository.findByTaskId(taskId));
     }

@@ -18,9 +18,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
+    private final AuthServiceClient authServiceClient;
+    private final boolean validateEnabled;
 
-    public JwtAuthFilter(JwtUtil jwtUtil) {
+    public JwtAuthFilter(JwtUtil jwtUtil, AuthServiceClient authServiceClient,
+            @org.springframework.beans.factory.annotation.Value("${auth.validate.enabled:false}") boolean validateEnabled) {
         this.jwtUtil = jwtUtil;
+        this.authServiceClient = authServiceClient;
+        this.validateEnabled = validateEnabled;
     }
 
     @Override
@@ -29,6 +34,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
+            if (validateEnabled && !authServiceClient.validate(token)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             var claims = jwtUtil.parse(token);
             String role = claims.get("role", String.class);
             java.util.List<GrantedAuthority> authorities = role == null
