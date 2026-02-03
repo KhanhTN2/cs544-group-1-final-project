@@ -10,6 +10,8 @@ public class DiscussionMessage {
     @Id
     private String id;
     private String releaseId;
+    private String taskId;
+    private String parentId;
     private String author;
     private String message;
     private Instant createdAt = Instant.now();
@@ -17,8 +19,10 @@ public class DiscussionMessage {
     public DiscussionMessage() {
     }
 
-    public DiscussionMessage(String releaseId, String author, String message) {
+    public DiscussionMessage(String releaseId, String taskId, String parentId, String author, String message) {
         this.releaseId = releaseId;
+        this.taskId = taskId;
+        this.parentId = parentId;
         this.author = author;
         this.message = message;
         this.createdAt = Instant.now();
@@ -44,12 +48,28 @@ public class DiscussionMessage {
         return createdAt;
     }
 
+    public String getTaskId() {
+        return taskId;
+    }
+
+    public String getParentId() {
+        return parentId;
+    }
+
     public void setId(String id) {
         this.id = id;
     }
 
     public void setReleaseId(String releaseId) {
         this.releaseId = releaseId;
+    }
+
+    public void setTaskId(String taskId) {
+        this.taskId = taskId;
+    }
+
+    public void setParentId(String parentId) {
+        this.parentId = parentId;
     }
 
     public void setAuthor(String author) {

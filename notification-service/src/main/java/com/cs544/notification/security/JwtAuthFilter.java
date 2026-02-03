@@ -26,8 +26,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+        String token = null;
         if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+            token = header.substring(7);
+        } else if (request.getRequestURI().startsWith("/api/notifications/stream")) {
+            token = request.getParameter("token");
+        }
+
+        if (token != null && !token.isBlank()) {
             var claims = jwtUtil.parse(token);
             var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), token, java.util.List.of());
             auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

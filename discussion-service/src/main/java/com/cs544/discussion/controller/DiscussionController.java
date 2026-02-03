@@ -1,6 +1,7 @@
 package com.cs544.discussion.controller;
 
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ public class DiscussionController {
     private final DiscussionRepository repository;
     private final DiscussionEventProducer eventProducer;
     private final JwtUtil jwtUtil;
+    private static final Set<String> ALLOWED_ROLES = Set.of("release-manager", "dev-1", "dev-2");
 
     public DiscussionController(DiscussionRepository repository, DiscussionEventProducer eventProducer, JwtUtil jwtUtil) {
         this.repository = repository;
@@ -31,8 +33,17 @@ public class DiscussionController {
     }
 
     @PostMapping
-    public ResponseEntity<DiscussionMessage> createMessage(@RequestBody DiscussionRequest request) {
-        DiscussionMessage message = repository.save(new DiscussionMessage(request.releaseId(), request.author(), request.message()));
+    public ResponseEntity<?> createMessage(@RequestBody DiscussionRequest request) {
+        if (request.taskId() == null || request.taskId().isBlank()) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("taskId is required."));
+        }
+        DiscussionMessage message = repository.save(new DiscussionMessage(
+                request.releaseId(),
+                request.taskId(),
+                request.parentId(),
+                request.author(),
+                request.message()
+        ));
         eventProducer.publishMessageCreated(message);
         return ResponseEntity.ok(message);
     }
@@ -40,6 +51,11 @@ public class DiscussionController {
     @GetMapping("/{releaseId}")
     public ResponseEntity<List<DiscussionMessage>> listMessages(@PathVariable String releaseId) {
         return ResponseEntity.ok(repository.findByReleaseId(releaseId));
+    }
+
+    @GetMapping("/tasks/{taskId}")
+    public ResponseEntity<List<DiscussionMessage>> listTaskMessages(@PathVariable String taskId) {
+        return ResponseEntity.ok(repository.findByTaskId(taskId));
     }
 
     @GetMapping(path = "/stream/{releaseId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -54,17 +70,35 @@ public class DiscussionController {
         return emitter;
     }
 
+    @GetMapping(path = "/stream/tasks/{taskId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamTaskMessages(@PathVariable String taskId) {
+        SseEmitter emitter = new SseEmitter();
+        repository.findByTaskId(taskId).forEach(message -> {
+            try {
+                emitter.send(message);
+            } catch (Exception ignored) {
+            }
+        });
+        return emitter;
+    }
+
     @PostMapping("/token")
-    public ResponseEntity<TokenResponse> token(@RequestBody TokenRequest request) {
+    public ResponseEntity<?> token(@RequestBody TokenRequest request) {
+        if (!ALLOWED_ROLES.contains(request.username())) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Invalid role."));
+        }
         return ResponseEntity.ok(new TokenResponse(jwtUtil.generateToken(request.username())));
     }
 
-    public record DiscussionRequest(String releaseId, String author, String message) {
+    public record DiscussionRequest(String releaseId, String taskId, String parentId, String author, String message) {
     }
 
     public record TokenRequest(String username) {
     }
 
     public record TokenResponse(String token) {
+    }
+
+    public record ErrorResponse(String message) {
     }
 }

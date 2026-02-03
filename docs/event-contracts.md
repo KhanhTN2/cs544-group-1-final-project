@@ -31,6 +31,45 @@ Payload:
 }
 ```
 
+### TaskAssigned
+Topic: `release.events`
+
+Payload:
+```json
+{
+  "developerId": "<developer id>",
+  "releaseId": "<release id>",
+  "taskId": "<task id>",
+  "taskTitle": "<task title>"
+}
+```
+
+### HotfixTaskAdded
+Topic: `release.events`
+
+Payload:
+```json
+{
+  "developerId": "<developer id>",
+  "releaseId": "<release id>",
+  "taskTitle": "<task title>"
+}
+```
+
+### StaleTaskReminder
+Topic: `release.events`
+
+Payload:
+```json
+{
+  "developerId": "<developer id>",
+  "releaseId": "<release id>",
+  "taskId": "<task id>",
+  "taskTitle": "<task title>",
+  "lastUpdatedAt": "<ISO-8601>"
+}
+```
+
 ### DiscussionMessageCreated
 Topic: `discussion.events`
 

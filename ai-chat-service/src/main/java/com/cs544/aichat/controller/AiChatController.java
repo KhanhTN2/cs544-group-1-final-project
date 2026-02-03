@@ -10,11 +10,14 @@ import com.cs544.aichat.security.JwtUtil;
 import com.cs544.aichat.service.ChatEventProducer;
 import com.cs544.aichat.service.ChatEventProducer.ChatResponse;
 
+import java.util.Set;
+
 @RestController
 @RequestMapping("/api/chat")
 public class AiChatController {
     private final ChatEventProducer eventProducer;
     private final JwtUtil jwtUtil;
+    private static final Set<String> ALLOWED_ROLES = Set.of("release-manager", "dev-1", "dev-2");
 
     public AiChatController(ChatEventProducer eventProducer, JwtUtil jwtUtil) {
         this.eventProducer = eventProducer;
@@ -30,7 +33,10 @@ public class AiChatController {
     }
 
     @PostMapping("/token")
-    public ResponseEntity<TokenResponse> token(@RequestBody TokenRequest request) {
+    public ResponseEntity<?> token(@RequestBody TokenRequest request) {
+        if (!ALLOWED_ROLES.contains(request.username())) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Invalid role."));
+        }
         return ResponseEntity.ok(new TokenResponse(jwtUtil.generateToken(request.username())));
     }
 
@@ -41,5 +47,8 @@ public class AiChatController {
     }
 
     public record TokenResponse(String token) {
+    }
+
+    public record ErrorResponse(String message) {
     }
 }

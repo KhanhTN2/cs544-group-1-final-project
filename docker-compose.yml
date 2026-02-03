@@ -1,4 +1,3 @@
-version: '3.9'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.3
@@ -72,11 +71,31 @@ services:
     container_name: notification-service
     depends_on:
       - kafka
+      - mongodb
+      - mailhog
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
+      MONGODB_URI: mongodb://mongodb:27017/notifications
+      SMTP_HOST: ${SMTP_HOST:-mailhog}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      NOTIFICATION_FROM: ${NOTIFICATION_FROM:-no-reply@cs544.local}
+      NOTIFICATION_DEFAULT_RECIPIENT: ${NOTIFICATION_DEFAULT_RECIPIENT:-release-manager@cs544.local}
+      DEV1_EMAIL: ${DEV1_EMAIL:-dev-1@cs544.local}
+      DEV2_EMAIL: ${DEV2_EMAIL:-dev-2@cs544.local}
+      SYSTEM_ALERT_RECIPIENTS: ${SYSTEM_ALERT_RECIPIENTS:-release-manager@cs544.local}
       JWT_SECRET: 0123456789abcdef0123456789abcdef
     ports:
       - "8084:8084"
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
 
   prometheus:
     image: prom/prometheus:v2.52.0

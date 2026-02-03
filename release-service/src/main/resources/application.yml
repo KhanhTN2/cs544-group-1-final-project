@@ -12,6 +12,10 @@ spring:
 security:
   jwt:
     secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef}
+release:
+  tasks:
+    stale-threshold-hours: ${TASK_STALE_THRESHOLD_HOURS:24}
+    reminder-interval-ms: ${TASK_REMINDER_INTERVAL_MS:3600000}
 management:
   endpoints:
     web:

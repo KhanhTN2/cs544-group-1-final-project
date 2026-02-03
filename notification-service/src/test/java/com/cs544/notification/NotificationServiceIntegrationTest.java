@@ -12,6 +12,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -21,6 +22,8 @@ import org.testcontainers.utility.DockerImageName;
 class NotificationServiceIntegrationTest {
     @Container
     static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.3"));
+    @Container
+    static MongoDBContainer mongo = new MongoDBContainer(DockerImageName.parse("mongo:6.0"));
 
     @LocalServerPort
     int port;
@@ -30,6 +33,7 @@ class NotificationServiceIntegrationTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
+        registry.add("spring.data.mongodb.uri", mongo::getReplicaSetUrl);
         registry.add("security.jwt.secret", () -> "0123456789abcdef0123456789abcdef");
     }
 
