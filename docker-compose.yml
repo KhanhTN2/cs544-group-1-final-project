@@ -99,4 +99,15 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
     ports:
+      - "3001:3000"
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    depends_on:
+      - release-service
+      - discussion-service
+      - ai-chat-service
+      - notification-service
+    ports:
       - "3000:3000"

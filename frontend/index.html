@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CS544 Demo Frontend (React + Vue)</title>
+    <link rel="preconnect" href="https://unpkg.com" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      h1,
+      h2 {
+        margin: 0 0 12px;
+      }
+      .layout {
+        display: grid;
+        gap: 24px;
+      }
+      .grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      }
+      .card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 15px 35px rgba(15, 23, 42, 0.3);
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #94a3b8;
+        margin-bottom: 6px;
+      }
+      input,
+      textarea,
+      button {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid #334155;
+        padding: 10px 12px;
+        background: #0b1220;
+        color: #f8fafc;
+        font-size: 0.95rem;
+      }
+      input:focus,
+      textarea:focus {
+        outline: 2px solid #38bdf8;
+        outline-offset: 1px;
+      }
+      button {
+        cursor: pointer;
+        background: linear-gradient(120deg, #38bdf8, #6366f1);
+        border: none;
+        font-weight: 600;
+      }
+      button.secondary {
+        background: #1e293b;
+      }
+      .stack {
+        display: grid;
+        gap: 12px;
+      }
+      .status {
+        font-size: 0.85rem;
+        background: #0b1220;
+        border: 1px dashed #334155;
+        border-radius: 12px;
+        padding: 10px;
+        color: #cbd5f5;
+        white-space: pre-wrap;
+      }
+      .token-list {
+        display: grid;
+        gap: 8px;
+      }
+      .token-item {
+        background: #0b1220;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 0.8rem;
+        overflow-wrap: anywhere;
+      }
+      .footer {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <header>
+        <h1>CS544 Microservices Demo</h1>
+        <p class="footer">
+          This page uses <strong>React</strong> for release, discussion, and AI chat workflows, and
+          <strong>Vue</strong> for system notification checks.
+        </p>
+      </header>
+
+      <section id="react-root" class="grid"></section>
+      <section id="vue-root"></section>
+    </div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+    <script type="text/babel">
+      const { useMemo, useState } = React;
+
+      const baseUrls = {
+        releases: "http://localhost:8081",
+        discussions: "http://localhost:8082",
+        chat: "http://localhost:8083",
+      };
+
+      const SectionCard = ({ title, children }) => (
+        <div className="card">
+          <h2>{title}</h2>
+          <div className="stack">{children}</div>
+        </div>
+      );
+
+      const App = () => {
+        const [username, setUsername] = useState("demo");
+        const [tokens, setTokens] = useState({});
+        const [releaseForm, setReleaseForm] = useState({ name: "Album", version: "1.0" });
+        const [discussionForm, setDiscussionForm] = useState({
+          releaseId: "rel-1",
+          author: "sam",
+          message: "hello",
+        });
+        const [chatPrompt, setChatPrompt] = useState("Summarize");
+        const [status, setStatus] = useState("Ready.");
+
+        const updateStatus = (message) => setStatus(message);
+
+        const requestToken = async (service) => {
+          updateStatus(`Requesting ${service} token...`);
+          try {
+            const response = await fetch(`${baseUrls[service]}/api/${service}/token`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username }),
+            });
+            if (!response.ok) {
+              throw new Error(`${service} token request failed: ${response.status}`);
+            }
+            const data = await response.json();
+            setTokens((prev) => ({ ...prev, [service]: data.token || data.accessToken || "" }));
+            updateStatus(`${service} token ready.`);
+          } catch (error) {
+            updateStatus(error.message);
+          }
+        };
+
+        const submitRelease = async () => {
+          updateStatus("Creating release...");
+          try {
+            const response = await fetch(`${baseUrls.releases}/api/releases`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${tokens.releases || ""}`,
+              },
+              body: JSON.stringify(releaseForm),
+            });
+            if (!response.ok) {
+              throw new Error(`Release create failed: ${response.status}`);
+            }
+            updateStatus("Release created successfully.");
+          } catch (error) {
+            updateStatus(error.message);
+          }
+        };
+
+        const submitDiscussion = async () => {
+          updateStatus("Creating discussion message...");
+          try {
+            const response = await fetch(`${baseUrls.discussions}/api/discussions`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${tokens.discussions || ""}`,
+              },
+              body: JSON.stringify(discussionForm),
+            });
+            if (!response.ok) {
+              throw new Error(`Discussion create failed: ${response.status}`);
+            }
+            updateStatus("Discussion message posted.");
+          } catch (error) {
+            updateStatus(error.message);
+          }
+        };
+
+        const submitChat = async () => {
+          updateStatus("Requesting AI chat response...");
+          try {
+            const response = await fetch(`${baseUrls.chat}/api/chat`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${tokens.chat || ""}`,
+              },
+              body: JSON.stringify({ prompt: chatPrompt }),
+            });
+            if (!response.ok) {
+              throw new Error(`Chat request failed: ${response.status}`);
+            }
+            const data = await response.json();
+            updateStatus(`AI response: ${JSON.stringify(data)}`);
+          } catch (error) {
+            updateStatus(error.message);
+          }
+        };
+
+        const tokenItems = useMemo(() => Object.entries(tokens), [tokens]);
+
+        return (
+          <>
+            <SectionCard title="1. Tokens">
+              <label>Username</label>
+              <input value={username} onChange={(event) => setUsername(event.target.value)} />
+              <button onClick={() => requestToken("releases")}>Get Release Token</button>
+              <button onClick={() => requestToken("discussions")} className="secondary">
+                Get Discussion Token
+              </button>
+              <button onClick={() => requestToken("chat")} className="secondary">
+                Get Chat Token
+              </button>
+              <div className="token-list">
+                {tokenItems.length === 0 && <div className="token-item">No tokens yet.</div>}
+                {tokenItems.map(([service, token]) => (
+                  <div key={service} className="token-item">
+                    <strong>{service}:</strong> {token || "(empty)"}
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="2. Release">
+              <label>Release name</label>
+              <input
+                value={releaseForm.name}
+                onChange={(event) => setReleaseForm({ ...releaseForm, name: event.target.value })}
+              />
+              <label>Version</label>
+              <input
+                value={releaseForm.version}
+                onChange={(event) => setReleaseForm({ ...releaseForm, version: event.target.value })}
+              />
+              <button onClick={submitRelease}>Create Release</button>
+            </SectionCard>
+
+            <SectionCard title="3. Discussion">
+              <label>Release ID</label>
+              <input
+                value={discussionForm.releaseId}
+                onChange={(event) =>
+                  setDiscussionForm({ ...discussionForm, releaseId: event.target.value })
+                }
+              />
+              <label>Author</label>
+              <input
+                value={discussionForm.author}
+                onChange={(event) => setDiscussionForm({ ...discussionForm, author: event.target.value })}
+              />
+              <label>Message</label>
+              <textarea
+                rows="3"
+                value={discussionForm.message}
+                onChange={(event) =>
+                  setDiscussionForm({ ...discussionForm, message: event.target.value })
+                }
+              ></textarea>
+              <button onClick={submitDiscussion}>Post Message</button>
+            </SectionCard>
+
+            <SectionCard title="4. AI Chat">
+              <label>Prompt</label>
+              <textarea
+                rows="3"
+                value={chatPrompt}
+                onChange={(event) => setChatPrompt(event.target.value)}
+              ></textarea>
+              <button onClick={submitChat}>Ask AI</button>
+            </SectionCard>
+
+            <SectionCard title="Status">
+              <div className="status">{status}</div>
+            </SectionCard>
+          </>
+        );
+      };
+
+      ReactDOM.createRoot(document.getElementById("react-root")).render(<App />);
+    </script>
+
+    <script>
+      const { createApp, ref } = Vue;
+
+      createApp({
+        setup() {
+          const token = ref("");
+          const service = ref("release-service");
+          const message = ref("down");
+          const status = ref("Ready.");
+
+          const submitNotification = async () => {
+            status.value = "Sending system error event...";
+            try {
+              const response = await fetch("http://localhost:8084/api/notifications/system-error", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token.value}`,
+                },
+                body: JSON.stringify({ service: service.value, message: message.value }),
+              });
+
+              if (!response.ok) {
+                throw new Error(`Notification failed: ${response.status}`);
+              }
+              status.value = "SystemErrorEvent sent.";
+            } catch (error) {
+              status.value = error.message;
+            }
+          };
+
+          return {
+            token,
+            service,
+            message,
+            status,
+            submitNotification,
+          };
+        },
+        template: `
+          <div class="card">
+            <h2>5. Notifications (Vue)</h2>
+            <div class="stack">
+              <label>Notification token</label>
+              <input v-model="token" placeholder="Paste notification JWT" />
+              <label>Service</label>
+              <input v-model="service" />
+              <label>Message</label>
+              <input v-model="message" />
+              <button @click="submitNotification">Send System Error Event</button>
+              <div class="status">{{ status }}</div>
+            </div>
+          </div>
+        `,
+      }).mount("#vue-root");
+    </script>
+  </body>
+</html>
