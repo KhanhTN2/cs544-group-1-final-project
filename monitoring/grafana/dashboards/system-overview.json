@@ -43,8 +43,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 6,
+        "w": 8,
         "x": 0,
         "y": 0
       },
@@ -74,12 +74,30 @@
     {
       "datasource": "Prometheus",
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
+        "h": 6,
+        "w": 8,
+        "x": 8,
         "y": 0
       },
       "id": 2,
+      "targets": [
+        {
+          "expr": "active_developers_count",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Developers Count",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
       "targets": [
         {
           "expr": "process_uptime_seconds",
@@ -87,6 +105,64 @@
         }
       ],
       "title": "Uptime",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "id": 4,
+      "targets": [
+        {
+          "expr": "increase(tasks_completed_total[1d])",
+          "refId": "A"
+        }
+      ],
+      "title": "Tasks Completed Per Day",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "rate(kafka_events_published_total[1m]) * 60",
+          "refId": "A"
+        }
+      ],
+      "title": "Kafka Events Published Per Minute",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 6,
+      "targets": [
+        {
+          "expr": "rate(ai_chat_requests_total[1m])",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(ai_chat_request_latency_seconds_sum[1m]) / rate(ai_chat_request_latency_seconds_count[1m])",
+          "refId": "B"
+        }
+      ],
+      "title": "AI Request Rate + Latency",
       "type": "timeseries"
     }
   ],

@@ -13,9 +13,11 @@ import com.cs544.discussion.model.DiscussionMessage;
 @Service
 public class DiscussionEventProducer {
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final DiscussionMetrics metrics;
 
-    public DiscussionEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
+    public DiscussionEventProducer(KafkaTemplate<String, Object> kafkaTemplate, DiscussionMetrics metrics) {
         this.kafkaTemplate = kafkaTemplate;
+        this.metrics = metrics;
     }
 
     public void publishMessageCreated(DiscussionMessage message) {
@@ -28,5 +30,6 @@ public class DiscussionEventProducer {
                 message
         );
         kafkaTemplate.send("discussion.events", envelope.eventType(), envelope);
+        metrics.incrementKafkaEvent(envelope.eventType());
     }
 }

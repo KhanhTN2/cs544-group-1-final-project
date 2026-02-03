@@ -8,26 +8,68 @@ createApp({
     const status = ref("Ready.");
     const lastError = ref(null);
     const alerts = ref([]);
+    const seen = new Set();
     const streamActive = ref(false);
     let eventSource = null;
 
-    const role = () => document.body.dataset.role || "release-manager";
+    const userRole = () => document.body.dataset.role || "DEVELOPER";
+    const userId = () => document.body.dataset.userId || "dev-1";
 
     const ensureToken = async () => {
       if (token.value) {
         return token.value;
       }
-      const response = await fetch("http://localhost:8084/api/notifications/token", {
+      const loginResponse = await fetch("http://localhost:8086/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: role() }),
+        body: JSON.stringify({ username: userId(), password: "secret" }),
       });
-      if (!response.ok) {
-        throw new Error(`Token request failed: ${response.status}`);
+
+      if (loginResponse.ok) {
+        const data = await loginResponse.json();
+        token.value = data.token || "";
+        return token.value;
       }
-      const data = await response.json();
+
+      if (loginResponse.status !== 400) {
+        throw new Error(`Auth login failed: ${loginResponse.status}`);
+      }
+
+      const registerResponse = await fetch("http://localhost:8086/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: userId(), password: "secret", role: userRole() }),
+      });
+
+      if (!registerResponse.ok) {
+        throw new Error(`Auth register failed: ${registerResponse.status}`);
+      }
+
+      const retryLogin = await fetch("http://localhost:8086/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: userId(), password: "secret" }),
+      });
+      if (!retryLogin.ok) {
+        throw new Error(`Auth login failed: ${retryLogin.status}`);
+      }
+      const data = await retryLogin.json();
       token.value = data.token || "";
       return token.value;
+    };
+
+    const makeKey = (payload) => (payload && payload.id ? String(payload.id) : "");
+
+    const addAlert = (payload) => {
+      const key = makeKey(payload);
+      if (!key) {
+        return;
+      }
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      alerts.value = [payload, ...alerts.value].slice(0, 20);
     };
 
     const submitNotification = async () => {
@@ -46,9 +88,10 @@ createApp({
         if (!response.ok) {
           throw new Error(`Notification failed: ${response.status}`);
         }
-        status.value = "SystemErrorEvent sent.";
-        await loadLastError();
-        await loadAlerts();
+        const payload = await response.json();
+        addAlert(payload);
+        lastError.value = payload;
+        status.value = "System error sent.";
       } catch (error) {
         status.value = error.message;
       }
@@ -70,6 +113,7 @@ createApp({
           throw new Error(`Alert fetch failed: ${response.status}`);
         }
         lastError.value = await response.json();
+        addAlert(lastError.value);
         status.value = "Latest system alert loaded.";
       } catch (error) {
         status.value = error.message;
@@ -86,7 +130,8 @@ createApp({
         if (!response.ok) {
           throw new Error(`Alert list failed: ${response.status}`);
         }
-        alerts.value = await response.json();
+        const list = await response.json();
+        list.forEach((item) => addAlert(item));
         status.value = "Alert history loaded.";
       } catch (error) {
         status.value = error.message;
@@ -106,7 +151,7 @@ createApp({
         try {
           const payload = JSON.parse(event.data);
           lastError.value = payload;
-          alerts.value = [payload, ...alerts.value];
+          addAlert(payload);
         } catch (error) {
           // Ignore malformed events
         }
@@ -154,29 +199,45 @@ createApp({
   },
   template: `
     <div class="card">
-      <h2>Notifications (Vue)</h2>
+      <h2>Notifications</h2>
       <div class="stack">
-        <label>Service</label>
-        <input v-model="service" />
-        <label>Message</label>
-        <input v-model="message" />
-        <button @click="submitNotification">Send system error event</button>
+        <div class="panel-title">Send system alert</div>
         <div class="split">
-          <button class="secondary" @click="loadLastError">Refresh latest alert</button>
-          <button class="secondary" @click="loadAlerts">Load all alerts</button>
+          <div>
+            <label>Service</label>
+            <input v-model="service" />
+          </div>
+          <div>
+            <label>Message</label>
+            <input v-model="message" />
+          </div>
         </div>
+        <button @click="submitNotification">Send system error event</button>
+
+        <div class="divider"></div>
+        <div class="panel-title">Live feed</div>
         <div class="split">
           <button class="secondary" @click="startStream" :disabled="streamActive">Start live stream</button>
           <button class="secondary" @click="stopStream" :disabled="!streamActive">Stop live stream</button>
         </div>
+
+        <div class="divider"></div>
+        <div class="panel-title">Latest alert</div>
         <div class="status" v-if="lastError">
-          Latest alert: {{ lastError.service }} - {{ lastError.message }}
+          <strong>{{ lastError.service }}</strong> — {{ lastError.message }}
         </div>
         <div class="status" v-else>No alerts received yet.</div>
-        <div class="panel-title">All alerts</div>
+
+        <div class="panel-title">Alert history</div>
+        <div class="split">
+          <button class="secondary" @click="loadLastError">Refresh latest</button>
+          <button class="secondary" @click="loadAlerts">Reload history</button>
+        </div>
         <div class="token-list" v-if="alerts.length">
           <div class="token-item" v-for="(alert, idx) in alerts" :key="idx">
-            <strong>{{ alert.service }}</strong> — {{ alert.message }}
+            <strong>{{ alert.service }}</strong>
+            <span>—</span>
+            <span>{{ alert.message }}</span>
           </div>
         </div>
         <div class="helper" v-else>No alerts in history.</div>

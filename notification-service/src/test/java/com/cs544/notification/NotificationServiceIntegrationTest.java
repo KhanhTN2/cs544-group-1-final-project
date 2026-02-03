@@ -2,7 +2,6 @@ package com.cs544.notification;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +15,12 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
+import javax.crypto.SecretKey;
+import java.util.Date;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -39,15 +44,14 @@ class NotificationServiceIntegrationTest {
 
     @BeforeEach
     void setup() {
-        token = given()
-                .contentType("application/json")
-                .body("{\"username\":\"demo\"}")
-                .post("http://localhost:" + port + "/api/notifications/token")
-                .then()
-                .statusCode(200)
-                .body("token", notNullValue())
-                .extract()
-                .path("token");
+        SecretKey key = Keys.hmacShaKeyFor("0123456789abcdef0123456789abcdef".getBytes());
+        token = Jwts.builder()
+                .setSubject("admin")
+                .claim("role", "ADMIN")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 3600_000))
+                .signWith(key)
+                .compact();
     }
 
     @Test

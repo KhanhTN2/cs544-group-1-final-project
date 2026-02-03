@@ -2,14 +2,18 @@ global:
   scrape_interval: 15s
 scrape_configs:
   - job_name: 'release-service'
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['release-service:8081']
   - job_name: 'discussion-service'
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['discussion-service:8082']
   - job_name: 'ai-chat-service'
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['ai-chat-service:8083']
   - job_name: 'notification-service'
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['notification-service:8084']

@@ -29,6 +29,17 @@ services:
     ports:
       - "27017:27017"
 
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    depends_on:
+      - mongodb
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/auth
+      JWT_SECRET: 0123456789abcdef0123456789abcdef
+    ports:
+      - "8086:8086"
+
   release-service:
     build: ./release-service
     container_name: release-service

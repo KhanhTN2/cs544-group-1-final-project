@@ -16,10 +16,16 @@ import com.cs544.release.repository.ReleaseRepository;
 public class ReleaseWorkflowService {
     private final ReleaseRepository releaseRepository;
     private final ReleaseEventProducer eventProducer;
+    private final ReleaseMetrics metrics;
 
-    public ReleaseWorkflowService(ReleaseRepository releaseRepository, ReleaseEventProducer eventProducer) {
+    public ReleaseWorkflowService(
+            ReleaseRepository releaseRepository,
+            ReleaseEventProducer eventProducer,
+            ReleaseMetrics metrics
+    ) {
         this.releaseRepository = releaseRepository;
         this.eventProducer = eventProducer;
+        this.metrics = metrics;
     }
 
     public Release getRelease(String id) {
@@ -87,6 +93,7 @@ public class ReleaseWorkflowService {
         ensureDeveloperHasNoActiveTask(developerId);
 
         task.setStatus(TaskStatus.IN_PROCESS);
+        eventProducer.publishTaskStarted(release, task);
         return releaseRepository.save(release);
     }
 
@@ -103,7 +110,33 @@ public class ReleaseWorkflowService {
         }
 
         task.setStatus(TaskStatus.COMPLETED);
+        eventProducer.publishTaskCompleted(release, task);
+        metrics.recordTaskCompleted();
         return releaseRepository.save(release);
+    }
+
+    public Release startTaskByTaskId(String taskId, String developerId) {
+        Release release = releaseRepository.findByTaskId(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Task not found."));
+        return startTask(release.getId(), taskId, developerId);
+    }
+
+    public Release completeTaskByTaskId(String taskId, String developerId) {
+        Release release = releaseRepository.findByTaskId(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Task not found."));
+        return completeTask(release.getId(), taskId, developerId);
+    }
+
+    public List<TaskWithRelease> listTasksForDeveloper(String developerId) {
+        return releaseRepository.findByAssignee(developerId).stream()
+                .filter(release -> release.getTasks() != null)
+                .flatMap(release -> release.getTasks().stream()
+                        .filter(task -> developerId.equals(task.getAssigneeId()))
+                        .map(task -> new TaskWithRelease(release.getId(), task)))
+                .toList();
+    }
+
+    public record TaskWithRelease(String releaseId, Task task) {
     }
 
     public Release completeRelease(String releaseId) {

@@ -44,6 +44,32 @@ Payload:
 }
 ```
 
+### TaskStarted
+Topic: `release.events`
+
+Payload:
+```json
+{
+  "developerId": "<developer id>",
+  "releaseId": "<release id>",
+  "taskId": "<task id>",
+  "taskTitle": "<task title>"
+}
+```
+
+### TaskCompleted
+Topic: `release.events`
+
+Payload:
+```json
+{
+  "developerId": "<developer id>",
+  "releaseId": "<release id>",
+  "taskId": "<task id>",
+  "taskTitle": "<task title>"
+}
+```
+
 ### HotfixTaskAdded
 Topic: `release.events`
 
@@ -56,7 +82,7 @@ Payload:
 }
 ```
 
-### StaleTaskReminder
+### StaleTaskDetected
 Topic: `release.events`
 
 Payload:

@@ -4,6 +4,7 @@ const baseUrls = {
   releases: "http://localhost:8081",
   discussions: "http://localhost:8082",
   chat: "http://localhost:8083",
+  auth: "http://localhost:8086",
 };
 
 const SectionCard = ({ title, tone, children }) => (
@@ -15,10 +16,11 @@ const SectionCard = ({ title, tone, children }) => (
 
 const App = () => {
   const [loginForm, setLoginForm] = useState({
-    role: "release-manager",
+    userId: "admin",
     remember: true,
   });
-  const [role, setRole] = useState("release-manager");
+  const [userId, setUserId] = useState("admin");
+  const [userRole, setUserRole] = useState("ADMIN");
   const [loggedIn, setLoggedIn] = useState(false);
   const [tokens, setTokens] = useState({});
   const [releaseForm, setReleaseForm] = useState({ name: "Album", version: "1.0" });
@@ -30,19 +32,19 @@ const App = () => {
   const [taskForm, setTaskForm] = useState({
     title: "",
     description: "",
-    assigneeId: "release-manager",
+    assigneeId: "admin",
     orderIndex: 1,
   });
   const [discussionForm, setDiscussionForm] = useState({
     releaseId: "",
-    author: "release-manager",
+    author: "admin",
     message: "",
   });
   const [discussionTaskId, setDiscussionTaskId] = useState("");
   const [discussionMessages, setDiscussionMessages] = useState([]);
   const [replyParentId, setReplyParentId] = useState("");
   const [chatPrompt, setChatPrompt] = useState("Summarize");
-  const [status, setStatus] = useState("Choose a role to start your local session.");
+  const [status, setStatus] = useState("Choose a user to start your local session.");
   const [activeView, setActiveView] = useState("menu");
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -56,21 +58,27 @@ const App = () => {
   };
 
   const roleLabel = {
-    "release-manager": "Release manager",
+    admin: "Admin",
     "dev-1": "Developer 1",
     "dev-2": "Developer 2",
   };
+  const roleByUser = {
+    admin: "ADMIN",
+    "dev-1": "DEVELOPER",
+    "dev-2": "DEVELOPER",
+  };
 
   const handleLogin = () => {
-    const selectedRole = loginForm.role;
-    if (!selectedRole) {
-      updateStatus("Select a role to continue.");
+    const selectedUserId = loginForm.userId;
+    if (!selectedUserId) {
+      updateStatus("Select a user to continue.");
       return;
     }
-    setRole(selectedRole);
+    setUserId(selectedUserId);
+    setUserRole(roleByUser[selectedUserId] || "DEVELOPER");
     setLoggedIn(true);
     setActiveView("menu");
-    updateStatus(`Signed in locally as ${roleLabel[selectedRole] || selectedRole}.`);
+    updateStatus(`Signed in locally as ${roleLabel[selectedUserId] || selectedUserId}.`);
   };
 
   const handleLogout = () => {
@@ -87,13 +95,14 @@ const App = () => {
 
   useEffect(() => {
     document.body.dataset.view = activeView;
-    document.body.dataset.role = role;
-  }, [activeView, role]);
+    document.body.dataset.role = userRole;
+    document.body.dataset.userId = userId;
+  }, [activeView, userRole, userId]);
 
   useEffect(() => {
-    setTaskForm((prev) => ({ ...prev, assigneeId: role }));
-    setDiscussionForm((prev) => ({ ...prev, author: role }));
-  }, [role]);
+    setTaskForm((prev) => ({ ...prev, assigneeId: userId }));
+    setDiscussionForm((prev) => ({ ...prev, author: userId }));
+  }, [userId]);
 
   useEffect(() => {
     if (!selectedReleaseId) {
@@ -116,21 +125,51 @@ const App = () => {
     setSelectedTaskId("");
   }, [selectedReleaseId]);
 
-  const requestToken = async (service) => {
-    updateStatus(`Requesting ${service} token...`);
+  const requestAuthToken = async () => {
+    if (tokens.auth) {
+      return tokens.auth;
+    }
+    updateStatus("Requesting auth token...");
     try {
-      const response = await fetch(`${baseUrls[service]}/api/${service}/token`, {
+      const loginResponse = await fetch(`${baseUrls.auth}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: role }),
+        body: JSON.stringify({ username: userId, password: "secret" }),
       });
-      if (!response.ok) {
-        throw new Error(`${service} token request failed: ${response.status}`);
+
+      if (loginResponse.ok) {
+        const data = await loginResponse.json();
+        const token = data.token || data.accessToken || "";
+        setTokens((prev) => ({ ...prev, auth: token }));
+        updateStatus("Auth token ready.");
+        return token;
       }
-      const data = await response.json();
+
+      if (loginResponse.status !== 400) {
+        throw new Error(`Auth login failed: ${loginResponse.status}`);
+      }
+
+      const registerResponse = await fetch(`${baseUrls.auth}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: userId, password: "secret", role: userRole }),
+      });
+      if (!registerResponse.ok) {
+        throw new Error(`Auth register failed: ${registerResponse.status}`);
+      }
+
+      const retryLogin = await fetch(`${baseUrls.auth}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: userId, password: "secret" }),
+      });
+      if (!retryLogin.ok) {
+        throw new Error(`Auth login failed: ${retryLogin.status}`);
+      }
+      const data = await retryLogin.json();
       const token = data.token || data.accessToken || "";
-      setTokens((prev) => ({ ...prev, [service]: token }));
-      updateStatus(`${service} token ready.`);
+      setTokens((prev) => ({ ...prev, auth: token }));
+      updateStatus("Auth token ready.");
       return token;
     } catch (error) {
       showError(error.message);
@@ -138,11 +177,13 @@ const App = () => {
     }
   };
 
+  const getJwt = async () => tokens.auth || (await requestAuthToken());
+
   const loadReleases = async (selectFirst = true) => {
     updateStatus("Loading releases...");
     try {
-      const token = tokens.releases || (await requestToken("releases"));
-      const response = await fetch(`${baseUrls.releases}/api/releases`, {
+      const token = await getJwt();
+      const response = await fetch(`${baseUrls.releases}/releases`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -162,8 +203,8 @@ const App = () => {
   const submitRelease = async () => {
     updateStatus("Creating release...");
     try {
-      const token = tokens.releases || (await requestToken("releases"));
-      const response = await fetch(`${baseUrls.releases}/api/releases`, {
+      const token = await getJwt();
+      const response = await fetch(`${baseUrls.releases}/releases`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,14 +234,14 @@ const App = () => {
     }
     updateStatus("Adding task...");
     try {
-      const token = tokens.releases || (await requestToken("releases"));
+      const token = await getJwt();
       const payload = {
         title: taskForm.title,
         description: taskForm.description,
         assigneeId: taskForm.assigneeId,
         orderIndex: Number(taskForm.orderIndex),
       };
-      const response = await fetch(`${baseUrls.releases}/api/releases/${targetReleaseId}/tasks`, {
+      const response = await fetch(`${baseUrls.releases}/releases/${targetReleaseId}/tasks`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -225,21 +266,16 @@ const App = () => {
     }
   };
 
-  const startTask = async (releaseId, taskId) => {
+  const startTask = async (taskId) => {
     updateStatus("Starting task...");
     try {
-      const token = tokens.releases || (await requestToken("releases"));
-      const response = await fetch(
-        `${baseUrls.releases}/api/releases/${releaseId}/tasks/${taskId}/start`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ developerId: role }),
-        }
-      );
+      const token = await getJwt();
+      const response = await fetch(`${baseUrls.releases}/tasks/${taskId}/start`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
         throw new Error(errorPayload.message || `Start failed: ${response.status}`);
@@ -251,21 +287,16 @@ const App = () => {
     }
   };
 
-  const completeTask = async (releaseId, taskId) => {
+  const completeTask = async (taskId) => {
     updateStatus("Completing task...");
     try {
-      const token = tokens.releases || (await requestToken("releases"));
-      const response = await fetch(
-        `${baseUrls.releases}/api/releases/${releaseId}/tasks/${taskId}/complete`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ developerId: role }),
-        }
-      );
+      const token = await getJwt();
+      const response = await fetch(`${baseUrls.releases}/tasks/${taskId}/complete`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
         throw new Error(errorPayload.message || `Complete failed: ${response.status}`);
@@ -285,9 +316,9 @@ const App = () => {
     }
     updateStatus("Completing release...");
     try {
-      const token = tokens.releases || (await requestToken("releases"));
-      const response = await fetch(`${baseUrls.releases}/api/releases/${targetReleaseId}/complete`, {
-        method: "PUT",
+      const token = await getJwt();
+      const response = await fetch(`${baseUrls.releases}/releases/${targetReleaseId}/complete`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -311,20 +342,30 @@ const App = () => {
     }
     updateStatus("Posting discussion message...");
     try {
-      const token = tokens.discussions || (await requestToken("discussions"));
-      const response = await fetch(`${baseUrls.discussions}/api/discussions`, {
+      const token = await getJwt();
+      const isReply = Boolean(replyParentId);
+      const endpoint = isReply
+        ? `${baseUrls.discussions}/comments/${replyParentId}/reply`
+        : `${baseUrls.discussions}/tasks/${discussionTaskId}/comments`;
+      const payload = isReply
+        ? {
+            releaseId: discussionForm.releaseId,
+            taskId: discussionTaskId,
+            author: discussionForm.author,
+            message: discussionForm.message,
+          }
+        : {
+            releaseId: discussionForm.releaseId,
+            author: discussionForm.author,
+            message: discussionForm.message,
+          };
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          releaseId: discussionForm.releaseId,
-          taskId: discussionTaskId,
-          parentId: replyParentId || null,
-          author: discussionForm.author,
-          message: discussionForm.message,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) {
         throw new Error(`Discussion create failed: ${response.status}`);
@@ -344,8 +385,8 @@ const App = () => {
     }
     updateStatus("Loading discussion thread...");
     try {
-      const token = tokens.discussions || (await requestToken("discussions"));
-      const response = await fetch(`${baseUrls.discussions}/api/discussions/tasks/${taskId}`, {
+      const token = await getJwt();
+      const response = await fetch(`${baseUrls.discussions}/tasks/${taskId}/comments`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -362,7 +403,7 @@ const App = () => {
   const submitChat = async () => {
     updateStatus("Requesting AI chat response...");
     try {
-      const token = tokens.chat || (await requestToken("chat"));
+      const token = await getJwt();
       const response = await fetch(`${baseUrls.chat}/api/chat`, {
         method: "POST",
         headers: {
@@ -397,13 +438,14 @@ const App = () => {
   const showFeature = (feature) => loggedIn && activeView === feature;
 
   const menuItems = [
-    { id: "release", label: "Manage releases", roles: ["release-manager", "dev-1", "dev-2"] },
-    { id: "discussion", label: "Post discussion", roles: ["release-manager", "dev-1", "dev-2"] },
-    { id: "chat", label: "Chat with AI", roles: ["release-manager", "dev-1", "dev-2"] },
-    { id: "notifications", label: "Send system alert", roles: ["release-manager", "dev-1", "dev-2"] },
+    { id: "release", label: "Manage releases", roles: ["ADMIN", "DEVELOPER"] },
+    { id: "discussion", label: "Post discussion", roles: ["ADMIN", "DEVELOPER"] },
+    { id: "chat", label: "Chat with AI", roles: ["ADMIN", "DEVELOPER"] },
+    { id: "notifications", label: "Send system alert", roles: ["ADMIN", "DEVELOPER"] },
+    { id: "email", label: "Open inbox", roles: ["ADMIN", "DEVELOPER"] },
   ];
-  const visibleMenuItems = menuItems.filter((item) => item.roles.includes(role));
-  const statusLabel = loggedIn ? `Role: ${roleLabel[role] || role} • ${status}` : status;
+  const visibleMenuItems = menuItems.filter((item) => item.roles.includes(userRole));
+  const statusLabel = loggedIn ? `User: ${roleLabel[userId] || userId} • ${status}` : status;
   const selectedTaskRelease = releases.find((item) => item.id === selectedTaskReleaseId);
   const selectedReleaseTasks =
     selectedTaskRelease && selectedTaskRelease.tasks
@@ -484,15 +526,15 @@ const App = () => {
       </div>
 
       {!loggedIn && (
-        <SectionCard title="Select a role" tone="accent">
+        <SectionCard title="Select a user" tone="accent">
           <div className="stack">
             <div>
-              <label>Role</label>
+              <label>User</label>
               <select
-                value={loginForm.role}
-                onChange={(event) => setLoginForm({ ...loginForm, role: event.target.value })}
+                value={loginForm.userId}
+                onChange={(event) => setLoginForm({ ...loginForm, userId: event.target.value })}
               >
-                <option value="release-manager">Release manager</option>
+                <option value="admin">Admin</option>
                 <option value="dev-1">Developer 1</option>
                 <option value="dev-2">Developer 2</option>
               </select>
@@ -506,7 +548,7 @@ const App = () => {
                     setLoginForm({ ...loginForm, remember: event.target.checked })
                   }
                 />
-                Remember this role locally
+                Remember this user locally
               </label>
             </div>
             <button onClick={handleLogin}>Start session</button>
@@ -518,13 +560,23 @@ const App = () => {
       {isMenuVisible && (
         <SectionCard title="Choose a workflow" tone="accent">
           <div className="chip-row">
-            <div className="chip">Role: {roleLabel[role] || role}</div>
+            <div className="chip">User: {roleLabel[userId] || userId}</div>
             <div className="chip">Environment: Localhost</div>
             <div className="chip">Session: Active</div>
           </div>
           <div className="stack">
             {visibleMenuItems.map((item) => (
-              <button key={item.id} onClick={() => setActiveView(item.id)}>
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (item.id === "email") {
+                    window.open("http://localhost:8025", "_blank", "noopener,noreferrer");
+                    updateStatus("Opened Mailhog inbox.");
+                    return;
+                  }
+                  setActiveView(item.id);
+                }}
+              >
                 {item.label}
               </button>
             ))}
@@ -542,7 +594,9 @@ const App = () => {
             <button className="ghost" onClick={() => setActiveView("menu")}>
               Back to menu
             </button>
-            <button onClick={() => setIsReleaseModalOpen(true)}>Add release</button>
+            {userRole === "ADMIN" && (
+              <button onClick={() => setIsReleaseModalOpen(true)}>Add release</button>
+            )}
             <button className="secondary" onClick={handleLogout}>
               Sign out
             </button>
@@ -589,17 +643,18 @@ const App = () => {
                           {release.completed ? "Completed" : "Active"}
                         </span>
                       </div>
-                      <div className="task-actions">
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            completeRelease(release.id);
-                          }}
-                          disabled={release.completed || !releaseAllCompleted}
-                        >
-                          Complete release
-                        </button>
-                      </div>
+                      {userRole === "ADMIN" && !release.completed && releaseAllCompleted && (
+                        <div className="task-actions">
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              completeRelease(release.id);
+                            }}
+                          >
+                            Complete release
+                          </button>
+                        </div>
+                      )}
 
                       {isExpanded && (
                         <div className="list-item-details" onClick={(event) => event.stopPropagation()}>
@@ -668,16 +723,16 @@ const App = () => {
                   <div className="task-actions">
                     <button
                       className="secondary"
-                      disabled={selectedTask.status !== "TODO" || role !== selectedTask.assigneeId}
-                      onClick={() => startTask(selectedTaskReleaseId, selectedTask.id)}
+                      disabled={selectedTask.status !== "TODO" || userId !== selectedTask.assigneeId}
+                      onClick={() => startTask(selectedTask.id)}
                     >
                       Start task
                     </button>
                     <button
                       disabled={
-                        selectedTask.status !== "IN_PROCESS" || role !== selectedTask.assigneeId
+                        selectedTask.status !== "IN_PROCESS" || userId !== selectedTask.assigneeId
                       }
-                      onClick={() => completeTask(selectedTaskReleaseId, selectedTask.id)}
+                      onClick={() => completeTask(selectedTask.id)}
                     >
                       Complete task
                     </button>
@@ -707,7 +762,7 @@ const App = () => {
               {!selectedTaskRelease && (
                 <div className="helper">Select a release before adding a task.</div>
               )}
-              {selectedTaskRelease && (
+              {selectedTaskRelease && userRole === "ADMIN" && (
                 <>
                   <label>Title</label>
                   <input
@@ -733,7 +788,7 @@ const App = () => {
                           setTaskForm({ ...taskForm, assigneeId: event.target.value })
                         }
                       >
-                        <option value="release-manager">Release manager</option>
+                        <option value="admin">Admin</option>
                         <option value="dev-1">Developer 1</option>
                         <option value="dev-2">Developer 2</option>
                       </select>
@@ -755,6 +810,9 @@ const App = () => {
                     Adding a task to a completed release reopens it as a hotfix.
                   </div>
                 </>
+              )}
+              {selectedTaskRelease && userRole !== "ADMIN" && (
+                <div className="helper">Only admins can add tasks.</div>
               )}
             </div>
           </div>

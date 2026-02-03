@@ -7,8 +7,7 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:kafka:9092}
     consumer:
-      properties:
-        spring.json.trusted.packages: '*'
+      properties: {}
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}

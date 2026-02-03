@@ -1,0 +1,14 @@
+server:
+  port: 8086
+spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://mongodb:27017/auth}
+security:
+  jwt:
+    secret: ${JWT_SECRET:0123456789abcdef0123456789abcdef}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus

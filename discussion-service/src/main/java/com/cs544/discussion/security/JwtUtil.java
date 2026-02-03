@@ -20,8 +20,13 @@ public class JwtUtil {
     }
 
     public String generateToken(String subject) {
+        return generateToken(subject, "DEVELOPER");
+    }
+
+    public String generateToken(String subject, String role) {
         return Jwts.builder()
                 .setSubject(subject)
+                .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 3600_000))
                 .signWith(key)

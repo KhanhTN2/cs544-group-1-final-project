@@ -12,9 +12,11 @@ import com.cs544.aichat.event.EventEnvelope;
 @Service
 public class ChatEventProducer {
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final AiChatMetrics metrics;
 
-    public ChatEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
+    public ChatEventProducer(KafkaTemplate<String, Object> kafkaTemplate, AiChatMetrics metrics) {
         this.kafkaTemplate = kafkaTemplate;
+        this.metrics = metrics;
     }
 
     public void publishChatResponse(ChatResponse response) {
@@ -27,6 +29,7 @@ public class ChatEventProducer {
                 response
         );
         kafkaTemplate.send("ai-chat.events", envelope.eventType(), envelope);
+        metrics.incrementKafkaEvent(envelope.eventType());
     }
 
     public record ChatResponse(String prompt, String reply) {

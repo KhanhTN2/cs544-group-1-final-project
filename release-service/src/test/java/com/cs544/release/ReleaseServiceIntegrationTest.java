@@ -2,7 +2,6 @@ package com.cs544.release;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +19,12 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
+import javax.crypto.SecretKey;
+import java.util.Date;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -46,15 +51,14 @@ class ReleaseServiceIntegrationTest {
 
     @BeforeEach
     void setup() {
-        token = given()
-                .contentType("application/json")
-                .body("{\"username\":\"demo\"}")
-                .post("http://localhost:" + port + "/api/releases/token")
-                .then()
-                .statusCode(200)
-                .body("token", notNullValue())
-                .extract()
-                .path("token");
+        SecretKey key = Keys.hmacShaKeyFor("0123456789abcdef0123456789abcdef".getBytes());
+        token = Jwts.builder()
+                .setSubject("admin")
+                .claim("role", "ADMIN")
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 3600_000))
+                .signWith(key)
+                .compact();
     }
 
     @Test
@@ -65,14 +69,14 @@ class ReleaseServiceIntegrationTest {
                 .header("Authorization", "Bearer " + token)
                 .contentType("application/json")
                 .body(release)
-                .post("http://localhost:" + port + "/api/releases")
+                .post("http://localhost:" + port + "/releases")
                 .then()
                 .statusCode(200)
                 .body("name", equalTo("Album"));
 
         given()
                 .header("Authorization", "Bearer " + token)
-                .get("http://localhost:" + port + "/api/releases")
+                .get("http://localhost:" + port + "/releases")
                 .then()
                 .statusCode(200)
                 .body("size()", equalTo(1));

@@ -7,8 +7,9 @@ import org.springframework.stereotype.Component;
 
 import com.cs544.notification.event.EventEnvelope;
 import com.cs544.notification.event.HotfixTaskAddedEvent;
-import com.cs544.notification.event.StaleTaskReminderEvent;
+import com.cs544.notification.event.StaleTaskDetectedEvent;
 import com.cs544.notification.event.TaskAssignedEvent;
+import com.cs544.notification.event.TaskCompletedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Component
@@ -38,7 +39,7 @@ public class NotificationEventListener {
         SystemErrorEvent event = objectMapper.convertValue(envelope.payload(), SystemErrorEvent.class);
         Map<String, Object> payload = objectMapper.convertValue(envelope.payload(), Map.class);
         eventHandler.handleSystemError(envelope.source(), envelope.id(), event, payload);
-        streamService.recordError(event);
+        streamService.recordError(envelope.id(), event);
     }
 
     @KafkaListener(topics = "release.events", groupId = "notification-service")
@@ -54,9 +55,11 @@ public class NotificationEventListener {
         } else if ("HotfixTaskAdded".equals(eventType)) {
             HotfixTaskAddedEvent event = objectMapper.convertValue(envelope.payload(), HotfixTaskAddedEvent.class);
             eventHandler.handleHotfixTaskAdded(envelope.source(), envelope.id(), event, payload);
-        } else if ("StaleTaskReminder".equals(eventType)) {
-            StaleTaskReminderEvent event = objectMapper.convertValue(envelope.payload(), StaleTaskReminderEvent.class);
-            eventHandler.handleStaleTaskReminder(envelope.source(), envelope.id(), event, payload);
+        } else if ("StaleTaskDetected".equals(eventType)) {
+            StaleTaskDetectedEvent event = objectMapper.convertValue(envelope.payload(), StaleTaskDetectedEvent.class);
+            eventHandler.handleStaleTaskDetected(envelope.source(), envelope.id(), event, payload);
+        } else if ("TaskCompleted".equals(eventType)) {
+            objectMapper.convertValue(envelope.payload(), TaskCompletedEvent.class);
         }
     }
 }

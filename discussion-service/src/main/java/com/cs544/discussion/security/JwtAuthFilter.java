@@ -1,21 +1,19 @@
 package com.cs544.discussion.security;
 
-import java.io.IOException;
-
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
+
+import reactor.core.publisher.Mono;
 
 @Component
-public class JwtAuthFilter extends OncePerRequestFilter {
+public class JwtAuthFilter implements WebFilter {
     private final JwtUtil jwtUtil;
 
     public JwtAuthFilter(JwtUtil jwtUtil) {
@@ -23,16 +21,19 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        String header = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             var claims = jwtUtil.parse(token);
-            var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), token, java.util.List.of());
-            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            String role = claims.get("role", String.class);
+            java.util.List<GrantedAuthority> authorities = role == null
+                    ? java.util.Collections.emptyList()
+                    : java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role));
+            var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), token, authorities);
+            return chain.filter(exchange)
+                    .contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth));
         }
-        filterChain.doFilter(request, response);
+        return chain.filter(exchange);
     }
 }

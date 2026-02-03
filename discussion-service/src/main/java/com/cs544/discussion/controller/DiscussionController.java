@@ -1,7 +1,6 @@
 package com.cs544.discussion.controller;
 
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -11,25 +10,28 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
 
 import com.cs544.discussion.model.DiscussionMessage;
 import com.cs544.discussion.repository.DiscussionRepository;
-import com.cs544.discussion.security.JwtUtil;
 import com.cs544.discussion.service.DiscussionEventProducer;
+import com.cs544.discussion.service.ActivityStreamService;
 
 @RestController
 @RequestMapping("/api/discussions")
 public class DiscussionController {
     private final DiscussionRepository repository;
     private final DiscussionEventProducer eventProducer;
-    private final JwtUtil jwtUtil;
-    private static final Set<String> ALLOWED_ROLES = Set.of("release-manager", "dev-1", "dev-2");
+    private final ActivityStreamService activityStreamService;
 
-    public DiscussionController(DiscussionRepository repository, DiscussionEventProducer eventProducer, JwtUtil jwtUtil) {
+    public DiscussionController(
+            DiscussionRepository repository,
+            DiscussionEventProducer eventProducer,
+            ActivityStreamService activityStreamService
+    ) {
         this.repository = repository;
         this.eventProducer = eventProducer;
-        this.jwtUtil = jwtUtil;
+        this.activityStreamService = activityStreamService;
     }
 
     @PostMapping
@@ -45,6 +47,7 @@ public class DiscussionController {
                 request.message()
         ));
         eventProducer.publishMessageCreated(message);
+        activityStreamService.emitDiscussion(message);
         return ResponseEntity.ok(message);
     }
 
@@ -59,44 +62,16 @@ public class DiscussionController {
     }
 
     @GetMapping(path = "/stream/{releaseId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamMessages(@PathVariable String releaseId) {
-        SseEmitter emitter = new SseEmitter();
-        repository.findByReleaseId(releaseId).forEach(message -> {
-            try {
-                emitter.send(message);
-            } catch (Exception ignored) {
-            }
-        });
-        return emitter;
+    public Flux<DiscussionMessage> streamMessages(@PathVariable String releaseId) {
+        return Flux.fromIterable(repository.findByReleaseId(releaseId));
     }
 
     @GetMapping(path = "/stream/tasks/{taskId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamTaskMessages(@PathVariable String taskId) {
-        SseEmitter emitter = new SseEmitter();
-        repository.findByTaskId(taskId).forEach(message -> {
-            try {
-                emitter.send(message);
-            } catch (Exception ignored) {
-            }
-        });
-        return emitter;
-    }
-
-    @PostMapping("/token")
-    public ResponseEntity<?> token(@RequestBody TokenRequest request) {
-        if (!ALLOWED_ROLES.contains(request.username())) {
-            return ResponseEntity.badRequest().body(new ErrorResponse("Invalid role."));
-        }
-        return ResponseEntity.ok(new TokenResponse(jwtUtil.generateToken(request.username())));
+    public Flux<DiscussionMessage> streamTaskMessages(@PathVariable String taskId) {
+        return Flux.fromIterable(repository.findByTaskId(taskId));
     }
 
     public record DiscussionRequest(String releaseId, String taskId, String parentId, String author, String message) {
-    }
-
-    public record TokenRequest(String username) {
-    }
-
-    public record TokenResponse(String token) {
     }
 
     public record ErrorResponse(String message) {

@@ -9,7 +9,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 import com.cs544.notification.event.HotfixTaskAddedEvent;
-import com.cs544.notification.event.StaleTaskReminderEvent;
+import com.cs544.notification.event.StaleTaskDetectedEvent;
 import com.cs544.notification.event.TaskAssignedEvent;
 
 @Service
@@ -45,19 +45,19 @@ public class NotificationEventHandler {
         emailService.send("HotfixTaskAdded", source, eventId, List.of(recipient), subject, body, payload);
     }
 
-    public void handleStaleTaskReminder(String source, String eventId, StaleTaskReminderEvent event, Map<String, Object> payload) {
+    public void handleStaleTaskDetected(String source, String eventId, StaleTaskDetectedEvent event, Map<String, Object> payload) {
         String recipient = emailService.resolveDeveloperEmail(event.developerId());
-        String subject = "Stale task reminder: " + event.taskTitle();
+        String subject = "Stale task detected: " + event.taskTitle();
         String formattedTime = formatInstant(event.lastUpdatedAt());
         String body = String.join("\n",
-                "This is a reminder that the following task has not been updated recently.",
+                "A task has been in progress without updates for too long.",
                 "Release: " + event.releaseId(),
                 "Task: " + event.taskTitle(),
                 "Task ID: " + event.taskId(),
                 "Last updated: " + formattedTime,
                 "Assignee: " + event.developerId()
         );
-        emailService.send("StaleTaskReminder", source, eventId, List.of(recipient), subject, body, payload);
+        emailService.send("StaleTaskDetected", source, eventId, List.of(recipient), subject, body, payload);
     }
 
     public void handleSystemError(String source, String eventId, SystemErrorEvent event, Map<String, Object> payload) {

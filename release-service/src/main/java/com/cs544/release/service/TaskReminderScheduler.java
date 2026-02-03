@@ -25,7 +25,7 @@ public class TaskReminderScheduler {
     public TaskReminderScheduler(
             ReleaseRepository releaseRepository,
             ReleaseEventProducer eventProducer,
-            @Value("${release.tasks.stale-threshold-hours:24}") long staleThresholdHours,
+            @Value("${release.tasks.stale-threshold-hours:48}") long staleThresholdHours,
             @Value("${release.tasks.reminder-interval-ms:3600000}") long reminderIntervalMs
     ) {
         this.releaseRepository = releaseRepository;
@@ -44,7 +44,7 @@ public class TaskReminderScheduler {
                 continue;
             }
             for (Task task : release.getTasks()) {
-                if (task.getStatus() == TaskStatus.COMPLETED) {
+                if (task.getStatus() != TaskStatus.IN_PROCESS) {
                     continue;
                 }
                 Instant updatedAt = task.getUpdatedAt();
@@ -55,7 +55,7 @@ public class TaskReminderScheduler {
                 if (lastSent != null && lastSent.isAfter(reminderCutoff)) {
                     continue;
                 }
-                eventProducer.publishStaleTaskReminder(release, task);
+                eventProducer.publishStaleTaskDetected(release, task);
                 lastReminderSent.put(task.getId(), Instant.now());
             }
         }
