@@ -12,9 +12,9 @@ import com.cs544.discussion.model.DiscussionMessage;
 
 @Service
 public class DiscussionEventProducer {
-    private final KafkaTemplate<String, EventEnvelope<DiscussionMessage>> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public DiscussionEventProducer(KafkaTemplate<String, EventEnvelope<DiscussionMessage>> kafkaTemplate) {
+    public DiscussionEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 

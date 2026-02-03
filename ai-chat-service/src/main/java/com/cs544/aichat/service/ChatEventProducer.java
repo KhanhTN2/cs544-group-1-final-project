@@ -11,9 +11,9 @@ import com.cs544.aichat.event.EventEnvelope;
 
 @Service
 public class ChatEventProducer {
-    private final KafkaTemplate<String, EventEnvelope<ChatResponse>> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public ChatEventProducer(KafkaTemplate<String, EventEnvelope<ChatResponse>> kafkaTemplate) {
+    public ChatEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 

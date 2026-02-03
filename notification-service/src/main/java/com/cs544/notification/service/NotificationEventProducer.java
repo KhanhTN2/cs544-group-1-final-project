@@ -11,9 +11,9 @@ import com.cs544.notification.event.EventEnvelope;
 
 @Service
 public class NotificationEventProducer {
-    private final KafkaTemplate<String, EventEnvelope<SystemErrorEvent>> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public NotificationEventProducer(KafkaTemplate<String, EventEnvelope<SystemErrorEvent>> kafkaTemplate) {
+    public NotificationEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 

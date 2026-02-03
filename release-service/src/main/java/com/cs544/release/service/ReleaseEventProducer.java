@@ -12,9 +12,9 @@ import com.cs544.release.model.Release;
 
 @Service
 public class ReleaseEventProducer {
-    private final KafkaTemplate<String, EventEnvelope<Release>> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public ReleaseEventProducer(KafkaTemplate<String, EventEnvelope<Release>> kafkaTemplate) {
+    public ReleaseEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 

@@ -3,116 +3,367 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CS544 Demo Frontend (React + Vue)</title>
+    <title>CS544 Microservices Demo</title>
     <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        color-scheme: light dark;
-        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        color-scheme: light;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        --ink: #1b1916;
+        --ink-soft: #5b534c;
+        --surface: #fffdf8;
+        --surface-strong: #ffffff;
+        --accent: #f97316;
+        --accent-strong: #ea580c;
+        --accent-soft: #ffedd5;
+        --secondary: #0f766e;
+        --secondary-soft: #ccfbf1;
+        --border: rgba(35, 24, 15, 0.12);
+        --shadow: 0 20px 60px rgba(30, 24, 18, 0.14);
       }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
-        padding: 32px;
-        background: #0f172a;
-        color: #f8fafc;
+        background: radial-gradient(circle at top, #fdf6ec 0%, #f1e8db 45%, #e9ded0 100%);
+        color: var(--ink);
+        min-height: 100vh;
       }
+
       h1,
-      h2 {
+      h2,
+      h3 {
+        font-family: "Fraunces", serif;
         margin: 0 0 12px;
+        color: var(--ink);
       }
-      .layout {
+
+      p {
+        margin: 0;
+        line-height: 1.6;
+        color: var(--ink-soft);
+      }
+
+      .page {
+        position: relative;
+        overflow: hidden;
+        min-height: 100vh;
+        padding: 48px clamp(20px, 5vw, 72px) 80px;
+      }
+
+      .orb {
+        position: absolute;
+        border-radius: 999px;
+        filter: blur(0);
+        opacity: 0.5;
+      }
+
+      .orb.one {
+        width: 360px;
+        height: 360px;
+        background: radial-gradient(circle, rgba(249, 115, 22, 0.25), rgba(249, 115, 22, 0));
+        top: -120px;
+        right: -80px;
+      }
+
+      .orb.two {
+        width: 420px;
+        height: 420px;
+        background: radial-gradient(circle, rgba(13, 148, 136, 0.18), rgba(13, 148, 136, 0));
+        bottom: -160px;
+        left: -100px;
+      }
+
+      .shell {
+        position: relative;
         display: grid;
-        gap: 24px;
+        grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+        gap: clamp(24px, 4vw, 64px);
+        align-items: start;
+        z-index: 1;
       }
+
+      .hero {
+        background: rgba(255, 255, 255, 0.6);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 32px;
+        box-shadow: var(--shadow);
+        display: grid;
+        gap: 18px;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--secondary-soft);
+        color: var(--secondary);
+        font-weight: 600;
+        width: fit-content;
+      }
+
+      .hero h1 {
+        font-size: clamp(2rem, 2.8vw, 2.6rem);
+      }
+
+      .hero-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 0.95rem;
+        color: var(--ink-soft);
+      }
+
+      .hero-list li {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+
+      .hero-list span {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--accent);
+        margin-top: 7px;
+        flex-shrink: 0;
+      }
+
+      .hero-meta {
+        display: grid;
+        gap: 6px;
+        font-size: 0.85rem;
+        color: var(--ink-soft);
+      }
+
+      .workspace {
+        display: grid;
+        gap: 20px;
+      }
+
       .grid {
         display: grid;
         gap: 20px;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       }
+
       .card {
-        background: #111827;
-        border: 1px solid #1f2937;
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 15px 35px rgba(15, 23, 42, 0.3);
+        background: var(--surface-strong);
+        border-radius: 22px;
+        border: 1px solid var(--border);
+        padding: 22px;
+        box-shadow: 0 18px 40px rgba(31, 24, 16, 0.08);
       }
-      label {
-        display: block;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #94a3b8;
-        margin-bottom: 6px;
+
+      .card.accent {
+        border-color: rgba(249, 115, 22, 0.35);
+        background: linear-gradient(140deg, #fff7ed, #ffffff);
       }
-      input,
-      textarea,
-      button {
-        width: 100%;
-        border-radius: 10px;
-        border: 1px solid #334155;
-        padding: 10px 12px;
-        background: #0b1220;
-        color: #f8fafc;
-        font-size: 0.95rem;
-      }
-      input:focus,
-      textarea:focus {
-        outline: 2px solid #38bdf8;
-        outline-offset: 1px;
-      }
-      button {
-        cursor: pointer;
-        background: linear-gradient(120deg, #38bdf8, #6366f1);
-        border: none;
-        font-weight: 600;
-      }
-      button.secondary {
-        background: #1e293b;
-      }
+
       .stack {
         display: grid;
         gap: 12px;
       }
+
+      label {
+        display: block;
+        font-size: 0.8rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+
+      input,
+      textarea,
+      button,
+      select {
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid rgba(39, 30, 21, 0.16);
+        padding: 12px 14px;
+        background: #fffaf4;
+        color: var(--ink);
+        font-size: 0.95rem;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: 2px solid rgba(249, 115, 22, 0.5);
+        outline-offset: 1px;
+      }
+
+      button {
+        cursor: pointer;
+        background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+        border: none;
+        color: #fff7ed;
+        font-weight: 600;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 25px rgba(249, 115, 22, 0.28);
+      }
+
+      button.secondary {
+        background: #fffaf4;
+        border: 1px solid rgba(39, 30, 21, 0.2);
+        color: var(--ink);
+      }
+
+      button.secondary:hover {
+        box-shadow: 0 12px 25px rgba(31, 24, 16, 0.08);
+      }
+
+      button.ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px dashed rgba(39, 30, 21, 0.3);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .chip-row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .chip {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #9a3412;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
       .status {
-        font-size: 0.85rem;
-        background: #0b1220;
-        border: 1px dashed #334155;
-        border-radius: 12px;
-        padding: 10px;
-        color: #cbd5f5;
+        font-size: 0.88rem;
+        background: #fff7ed;
+        border: 1px dashed rgba(249, 115, 22, 0.35);
+        border-radius: 14px;
+        padding: 12px 14px;
+        color: #9a3412;
         white-space: pre-wrap;
       }
+
       .token-list {
         display: grid;
         gap: 8px;
       }
+
       .token-item {
-        background: #0b1220;
-        border: 1px solid #334155;
-        border-radius: 10px;
-        padding: 8px 10px;
-        font-size: 0.8rem;
+        background: #fffaf4;
+        border: 1px solid rgba(39, 30, 21, 0.16);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 0.82rem;
         overflow-wrap: anywhere;
       }
-      .footer {
-        color: #94a3b8;
-        font-size: 0.85rem;
-        margin-top: 12px;
+
+      .inline {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+      }
+
+      .toggle input {
+        width: auto;
+        accent-color: var(--accent);
+      }
+
+      .helper {
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+      }
+
+      @media (max-width: 980px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          order: 2;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="layout">
-      <header>
-        <h1>CS544 Microservices Demo</h1>
-        <p class="footer">
-          This page uses <strong>React</strong> for release, discussion, and AI chat workflows, and
-          <strong>Vue</strong> for system notification checks.
-        </p>
-      </header>
+    <div class="page">
+      <div class="orb one"></div>
+      <div class="orb two"></div>
+      <main class="shell">
+        <aside class="hero">
+          <div class="hero-badge">CS544 Microservices Demo</div>
+          <h1>Manage releases, discussions, AI chat, and alerts in one calm workspace.</h1>
+          <p>
+            Sign in once, pick a microservice, and keep your workflow flowing. Tokens and status
+            updates stay visible while you test endpoints.
+          </p>
+          <ul class="hero-list">
+            <li><span></span>Single sign-in for quick token access</li>
+            <li><span></span>Friendly, guided forms for every service</li>
+            <li><span></span>Live status panel for API feedback</li>
+          </ul>
+          <div class="hero-meta">
+            <div>React handles releases, discussions, and AI chat.</div>
+            <div>Vue powers the notification workflow.</div>
+          </div>
+        </aside>
 
-      <section id="react-root" class="grid"></section>
-      <section id="vue-root"></section>
+        <section class="workspace">
+          <div id="react-root" class="grid"></div>
+          <div id="vue-root"></div>
+        </section>
+      </main>
     </div>
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -129,14 +380,21 @@
         chat: "http://localhost:8083",
       };
 
-      const SectionCard = ({ title, children }) => (
-        <div className="card">
+      const SectionCard = ({ title, tone, children }) => (
+        <div className={`card ${tone || ""}`.trim()}>
           <h2>{title}</h2>
           <div className="stack">{children}</div>
         </div>
       );
 
       const App = () => {
+        const [loginForm, setLoginForm] = useState({
+          email: "demo@cs544.local",
+          password: "demo123",
+          remember: true,
+        });
+        const [showPassword, setShowPassword] = useState(false);
+        const [loggedIn, setLoggedIn] = useState(false);
         const [username, setUsername] = useState("demo");
         const [tokens, setTokens] = useState({});
         const [releaseForm, setReleaseForm] = useState({ name: "Album", version: "1.0" });
@@ -146,9 +404,38 @@
           message: "hello",
         });
         const [chatPrompt, setChatPrompt] = useState("Summarize");
-        const [status, setStatus] = useState("Ready.");
+        const [status, setStatus] = useState("Welcome back. Please sign in.");
 
         const updateStatus = (message) => setStatus(message);
+
+        const deriveUsername = (email) => {
+          const trimmed = email.trim();
+          if (!trimmed) return "demo";
+          const [namePart] = trimmed.split("@");
+          return namePart || trimmed;
+        };
+
+        const handleLogin = () => {
+          const email = loginForm.email.trim();
+          const password = loginForm.password.trim();
+          if (!email) {
+            updateStatus("Enter your email to continue.");
+            return;
+          }
+          if (password.length < 6) {
+            updateStatus("Password must be at least 6 characters.");
+            return;
+          }
+          setUsername(deriveUsername(email));
+          setLoggedIn(true);
+          updateStatus(`Signed in as ${email}.`);
+        };
+
+        const handleLogout = () => {
+          setLoggedIn(false);
+          setTokens({});
+          updateStatus("You have been signed out.");
+        };
 
         const requestToken = async (service) => {
           updateStatus(`Requesting ${service} token...`);
@@ -166,6 +453,16 @@
             updateStatus(`${service} token ready.`);
           } catch (error) {
             updateStatus(error.message);
+          }
+        };
+
+        const requestAllTokens = async () => {
+          if (!loggedIn) {
+            updateStatus("Sign in first to request tokens.");
+            return;
+          }
+          for (const service of Object.keys(baseUrls)) {
+            await requestToken(service);
           }
         };
 
@@ -234,15 +531,87 @@
 
         return (
           <>
-            <SectionCard title="1. Tokens">
+            <SectionCard title="Sign in" tone="accent">
+              <div className="split">
+                <div>
+                  <label>Email</label>
+                  <input
+                    value={loginForm.email}
+                    onChange={(event) =>
+                      setLoginForm({ ...loginForm, email: event.target.value })
+                    }
+                    placeholder="you@company.com"
+                  />
+                </div>
+                <div>
+                  <label>Password</label>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={loginForm.password}
+                    onChange={(event) =>
+                      setLoginForm({ ...loginForm, password: event.target.value })
+                    }
+                    placeholder="At least 6 characters"
+                  />
+                </div>
+              </div>
+              <div className="inline">
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={loginForm.remember}
+                    onChange={(event) =>
+                      setLoginForm({ ...loginForm, remember: event.target.checked })
+                    }
+                  />
+                  Remember me on this device
+                </label>
+                <button className="ghost" onClick={() => setShowPassword((prev) => !prev)}>
+                  {showPassword ? "Hide" : "Show"} password
+                </button>
+              </div>
+              <div className="split">
+                <button onClick={handleLogin}>{loggedIn ? "Signed in" : "Sign in"}</button>
+                <button className="secondary" onClick={handleLogout} disabled={!loggedIn}>
+                  Sign out
+                </button>
+              </div>
+              <div className="chip-row">
+                <div className="chip">Workspace: Demo</div>
+                <div className="chip">Environment: Localhost</div>
+                <div className="chip">Session: {loggedIn ? "Active" : "Guest"}</div>
+              </div>
+              <div className="helper">
+                Tip: Sign in once, then grab all tokens or test services individually.
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Access & tokens">
               <label>Username</label>
-              <input value={username} onChange={(event) => setUsername(event.target.value)} />
-              <button onClick={() => requestToken("releases")}>Get Release Token</button>
-              <button onClick={() => requestToken("discussions")} className="secondary">
-                Get Discussion Token
+              <input
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                disabled={!loggedIn}
+              />
+              <button onClick={() => requestToken("releases")} disabled={!loggedIn}>
+                Get release token
               </button>
-              <button onClick={() => requestToken("chat")} className="secondary">
-                Get Chat Token
+              <button
+                onClick={() => requestToken("discussions")}
+                className="secondary"
+                disabled={!loggedIn}
+              >
+                Get discussion token
+              </button>
+              <button
+                onClick={() => requestToken("chat")}
+                className="secondary"
+                disabled={!loggedIn}
+              >
+                Get chat token
+              </button>
+              <button className="ghost" onClick={requestAllTokens} disabled={!loggedIn}>
+                Get all tokens
               </button>
               <div className="token-list">
                 {tokenItems.length === 0 && <div className="token-item">No tokens yet.</div>}
@@ -254,7 +623,7 @@
               </div>
             </SectionCard>
 
-            <SectionCard title="2. Release">
+            <SectionCard title="Release">
               <label>Release name</label>
               <input
                 value={releaseForm.name}
@@ -265,10 +634,10 @@
                 value={releaseForm.version}
                 onChange={(event) => setReleaseForm({ ...releaseForm, version: event.target.value })}
               />
-              <button onClick={submitRelease}>Create Release</button>
+              <button onClick={submitRelease}>Create release</button>
             </SectionCard>
 
-            <SectionCard title="3. Discussion">
+            <SectionCard title="Discussion">
               <label>Release ID</label>
               <input
                 value={discussionForm.releaseId}
@@ -289,10 +658,10 @@
                   setDiscussionForm({ ...discussionForm, message: event.target.value })
                 }
               ></textarea>
-              <button onClick={submitDiscussion}>Post Message</button>
+              <button onClick={submitDiscussion}>Post message</button>
             </SectionCard>
 
-            <SectionCard title="4. AI Chat">
+            <SectionCard title="AI chat">
               <label>Prompt</label>
               <textarea
                 rows="3"
@@ -353,7 +722,7 @@
         },
         template: `
           <div class="card">
-            <h2>5. Notifications (Vue)</h2>
+            <h2>Notifications (Vue)</h2>
             <div class="stack">
               <label>Notification token</label>
               <input v-model="token" placeholder="Paste notification JWT" />
@@ -361,7 +730,7 @@
               <input v-model="service" />
               <label>Message</label>
               <input v-model="message" />
-              <button @click="submitNotification">Send System Error Event</button>
+              <button @click="submitNotification">Send system error event</button>
               <div class="status">{{ status }}</div>
             </div>
           </div>
