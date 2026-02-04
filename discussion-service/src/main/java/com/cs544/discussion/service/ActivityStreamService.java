@@ -1,6 +1,7 @@
 package com.cs544.discussion.service;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
@@ -12,10 +13,13 @@ import reactor.core.publisher.Sinks;
 
 @Service
 public class ActivityStreamService {
-    private final Sinks.Many<ActivityEvent> sink = Sinks.many().multicast().onBackpressureBuffer();
+    // Replay recent activity events to new subscribers so everyone sees shared history.
+    private final Sinks.Many<ActivityEvent> sink = Sinks.many().replay().limit(400);
 
     public Flux<ActivityEvent> stream() {
-        return sink.asFlux();
+        Flux<ActivityEvent> heartbeat = Flux.interval(Duration.ofSeconds(8))
+                .map(tick -> new ActivityEvent("heartbeat", "", Instant.now(), Map.of()));
+        return Flux.merge(sink.asFlux(), heartbeat);
     }
 
     public void emit(ActivityEvent event) {

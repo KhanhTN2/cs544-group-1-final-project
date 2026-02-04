@@ -14,6 +14,15 @@ const SectionCard = ({ title, tone, children }) => (
   </div>
 );
 
+const baseActivityTypes = [
+  "TaskStarted",
+  "TaskCompleted",
+  "HotfixTaskAdded",
+  "DiscussionMessageCreated",
+  "StaleTaskDetected",
+  "SystemErrorEvent",
+];
+
 const App = () => {
   const [loginForm, setLoginForm] = useState({
     userId: "admin",
@@ -45,6 +54,7 @@ const App = () => {
   const [replyParentId, setReplyParentId] = useState("");
   const [chatPrompt, setChatPrompt] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const [chatConversations, setChatConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState("");
   const [chatStreaming, setChatStreaming] = useState(false);
@@ -63,15 +73,11 @@ const App = () => {
   const activityReconnectRef = useRef(null);
   const activityRetryRef = useRef(0);
   const chatFeedRef = useRef(null);
+  const chatInputRef = useRef(null);
+  const authTokenRef = useRef("");
+  const authPromiseRef = useRef(null);
+  const loggedInRef = useRef(false);
 
-  const activityTypes = [
-    "TaskStarted",
-    "TaskCompleted",
-    "HotfixTaskAdded",
-    "DiscussionMessageCreated",
-    "StaleTaskDetected",
-    "SystemErrorEvent",
-  ];
   const activityLimit = 40;
   const chatShortcuts = [
     "Summarize my tasks",
@@ -121,6 +127,7 @@ const App = () => {
     setUserId(selectedUserId);
     setUserRole(roleByUser[selectedUserId] || "DEVELOPER");
     setLoggedIn(true);
+    loggedInRef.current = true;
     setActiveView("menu");
     updateStatus(`Signed in locally as ${roleLabel[selectedUserId] || selectedUserId}.`);
   };
@@ -139,7 +146,10 @@ const App = () => {
     setActivityError("");
     setActivityEvents([]);
     setLoggedIn(false);
+    loggedInRef.current = false;
     setTokens({});
+    authTokenRef.current = "";
+    authPromiseRef.current = null;
     setReleases([]);
     setSelectedReleaseId("");
     setExpandedReleaseId("");
@@ -152,6 +162,14 @@ const App = () => {
     setActiveView("menu");
     updateStatus("You have been signed out of the local session.");
   };
+
+  useEffect(() => {
+    loggedInRef.current = loggedIn;
+  }, [loggedIn]);
+
+  useEffect(() => {
+    authTokenRef.current = tokens.auth || "";
+  }, [tokens.auth]);
 
   useEffect(() => {
     if (!activeConversationId && chatConversations.length > 0) {
@@ -192,11 +210,14 @@ const App = () => {
   }, [selectedReleaseId]);
 
   const requestAuthToken = async () => {
-    if (tokens.auth) {
-      return tokens.auth;
+    if (authTokenRef.current) {
+      return authTokenRef.current;
     }
-    updateStatus("Requesting auth token...");
-    try {
+    if (authPromiseRef.current) {
+      return authPromiseRef.current;
+    }
+    authPromiseRef.current = (async () => {
+      updateStatus("Requesting auth token...");
       const loginResponse = await fetch(`${baseUrls.auth}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -206,6 +227,7 @@ const App = () => {
       if (loginResponse.ok) {
         const data = await loginResponse.json();
         const token = data.token || data.accessToken || "";
+        authTokenRef.current = token;
         setTokens((prev) => ({ ...prev, auth: token }));
         updateStatus("Auth token ready.");
         return token;
@@ -234,16 +256,22 @@ const App = () => {
       }
       const data = await retryLogin.json();
       const token = data.token || data.accessToken || "";
+      authTokenRef.current = token;
       setTokens((prev) => ({ ...prev, auth: token }));
       updateStatus("Auth token ready.");
       return token;
-    } catch (error) {
-      showError(error.message);
-      throw error;
-    }
+    })()
+      .catch((error) => {
+        showError(error.message);
+        throw error;
+      })
+      .finally(() => {
+        authPromiseRef.current = null;
+      });
+    return authPromiseRef.current;
   };
 
-  const getJwt = async () => tokens.auth || (await requestAuthToken());
+  const getJwt = async () => authTokenRef.current || (await requestAuthToken());
 
   const scheduleReleaseRefresh = () => {
     if (activityRefreshRef.current) {
@@ -275,6 +303,9 @@ const App = () => {
         if (!payload) {
           return;
         }
+        if (payload.type === "heartbeat") {
+          return;
+        }
         const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
         const entry = {
           id: `${timestamp.getTime()}-${Math.random().toString(16).slice(2)}`,
@@ -283,14 +314,11 @@ const App = () => {
           timestamp,
           payload: payload.payload || {},
         };
-        if (entry.type && !activityTypes.includes(entry.type)) {
-          activityTypes.push(entry.type);
-        }
         setActivityEvents((prev) => [entry, ...prev].slice(0, activityLimit));
         scheduleReleaseRefresh();
       };
       activityListenerRef.current = handleActivityEvent;
-      activityTypes.forEach((type) => source.addEventListener(type, handleActivityEvent));
+      baseActivityTypes.forEach((type) => source.addEventListener(type, handleActivityEvent));
       source.onmessage = handleActivityEvent;
       source.onopen = () => {
         setActivityConnected(true);
@@ -299,19 +327,7 @@ const App = () => {
       };
       source.onerror = () => {
         setActivityConnected(false);
-        setActivityError("Activity stream disconnected. Reconnecting...");
-        if (activityStreamRef.current) {
-          activityStreamRef.current.close();
-          activityStreamRef.current = null;
-        }
-        if (!activityReconnectRef.current && loggedIn) {
-          const nextDelay = Math.min(10000, 500 * Math.pow(2, activityRetryRef.current));
-          activityRetryRef.current += 1;
-          activityReconnectRef.current = setTimeout(() => {
-            activityReconnectRef.current = null;
-            startActivityStream();
-          }, nextDelay);
-        }
+        setActivityError("Activity stream reconnecting...");
       };
       activityStreamRef.current = source;
     } catch (error) {
@@ -611,7 +627,9 @@ const App = () => {
   };
 
   const submitChat = async (promptOverride) => {
-    const trimmedPrompt = (promptOverride || chatPrompt || "").trim();
+    const promptValue =
+      typeof promptOverride === "string" ? promptOverride : typeof chatPrompt === "string" ? chatPrompt : "";
+    const trimmedPrompt = promptValue.trim();
     if (!trimmedPrompt) {
       updateStatus("Type a question first.");
       return;
@@ -646,7 +664,7 @@ const App = () => {
     setChatStreaming(true);
     try {
       const token = await getJwt();
-      const response = await fetch(`${baseUrls.chat}/api/chat`, {
+      const response = await fetch(`${baseUrls.chat}/api/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -657,31 +675,42 @@ const App = () => {
       if (!response.ok) {
         throw new Error(`Chat request failed: ${response.status}`);
       }
-      const payload = await response.json();
-      const conversationIdFromServer = payload.conversationId || targetConversationId;
-      setActiveConversationId(conversationIdFromServer);
-      setChatConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === targetConversationId
-            ? {
-                ...conversation,
-                id: conversationIdFromServer,
-                updatedAt: new Date().toISOString(),
-                messages: conversation.messages.map((message) =>
-                  message.id === assistantMessageId
-                    ? {
-                        ...message,
-                        content: payload.reply || "",
-                        format: payload.format || "text",
-                      }
-                    : message
-                ),
-              }
-            : conversation
-        )
-      );
+      if (!response.body) {
+        throw new Error("Chat stream unavailable.");
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+      let fullReply = "";
+      let format = "text";
+      while (!done) {
+        const result = await reader.read();
+        done = result.done;
+        if (result.value) {
+          const chunk = decoder.decode(result.value, { stream: true });
+          fullReply += chunk;
+          if (format === "text" && fullReply.trimStart().startsWith("<section")) {
+            format = "html";
+          }
+          setChatConversations((prev) =>
+            prev.map((conversation) =>
+              conversation.id === targetConversationId
+                ? {
+                    ...conversation,
+                    updatedAt: new Date().toISOString(),
+                    messages: conversation.messages.map((message) =>
+                      message.id === assistantMessageId
+                        ? { ...message, content: fullReply, format }
+                        : message
+                    ),
+                  }
+                : conversation
+            )
+          );
+        }
+      }
       setChatPrompt("");
-      updateStatus("AI response completed.");
+      updateStatus("AI stream completed.");
     } catch (error) {
       showError(error.message);
       setChatConversations((prev) =>
@@ -710,6 +739,16 @@ const App = () => {
     setActiveConversationId(nextConversation.id);
     setChatPrompt("");
     updateStatus("Started a new chat.");
+  };
+
+  const sendShortcutPrompt = async (shortcut) => {
+    if (chatStreaming) {
+      return;
+    }
+    await submitChat(shortcut);
+    if (chatInputRef.current) {
+      chatInputRef.current.focus();
+    }
   };
 
   useEffect(() => {
@@ -753,10 +792,23 @@ const App = () => {
       updateStatus("Sign in first to open AI chat.");
       return;
     }
+    if (chatOpen) {
+      setChatOpen(false);
+      updateStatus("AI chat closed.");
+      return;
+    }
     setChatOpen(true);
     loadChatConversations()
       .then(() => updateStatus("AI chat opened."))
       .catch((error) => showError(error.message));
+  };
+
+  const openDashboardPopup = () => {
+    setDashboardOpen((prev) => {
+      const next = !prev;
+      updateStatus(next ? "Dashboard opened." : "Dashboard closed.");
+      return next;
+    });
   };
 
   const menuItems = [
@@ -883,12 +935,24 @@ const App = () => {
     </div>
   );
 
+  const activityTypeOptions = [
+    "ALL",
+    ...new Set([
+      ...baseActivityTypes,
+      ...activityEvents.map((event) => event.type).filter(Boolean),
+    ]),
+  ];
+
   const filteredActivityEvents =
     activityFilter === "ALL"
       ? activityEvents
-      : activityEvents.filter((event) => event.type === activityFilter);
+      : activityEvents.filter((event) => (event.type || "").toLowerCase() === activityFilter.toLowerCase());
 
-  const activityTypeOptions = ["ALL", ...activityTypes];
+  useEffect(() => {
+    if (activityFilter !== "ALL" && !activityTypeOptions.includes(activityFilter)) {
+      setActivityFilter("ALL");
+    }
+  }, [activityFilter, activityTypeOptions.join("|")]);
 
   const ActivityWall = ({ showControls }) => (
     <div className="activity-wall hero-wall">
@@ -1399,6 +1463,31 @@ const App = () => {
         <span className="ai-fab-text">AI</span>
       </button>
 
+      <button className="metrics-fab" onClick={openDashboardPopup} aria-label="Open dashboard">
+        <span className="ai-fab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M4 12h4v8H4zm6-8h4v16h-4zm6 4h4v12h-4z" fill="currentColor" />
+          </svg>
+        </span>
+        <span className="ai-fab-text">Metrics</span>
+      </button>
+
+      {dashboardOpen && (
+        <div className="dashboard-popup">
+          <div className="chat-popup-header">
+            <div className="chat-popup-title">System Dashboard</div>
+            <button className="ghost" onClick={() => setDashboardOpen(false)}>
+              Close
+            </button>
+          </div>
+          <iframe
+            title="Grafana System Overview"
+            className="dashboard-frame"
+            src="http://localhost:3000/d/system-overview/system-overview?orgId=1&kiosk=tv"
+          />
+        </div>
+      )}
+
       {chatOpen && (
         <div className="chat-popup">
           <aside className="chat-popup-sidebar">
@@ -1443,7 +1532,7 @@ const App = () => {
                       <button
                         key={shortcut}
                         className="chat-shortcut"
-                        onClick={() => submitChat(shortcut)}
+                        onClick={() => sendShortcutPrompt(shortcut)}
                         disabled={chatStreaming}
                       >
                         {shortcut}
@@ -1464,13 +1553,14 @@ const App = () => {
             </div>
             <div className="chat-popup-input">
               <textarea
+                ref={chatInputRef}
                 rows="2"
                 value={chatPrompt}
                 onChange={(event) => setChatPrompt(event.target.value)}
                 placeholder="Ask anything about the system..."
               ></textarea>
               <button onClick={submitChat} disabled={chatStreaming}>
-                {chatStreaming ? "Streaming..." : "Send"}
+                {chatStreaming ? "Answering..." : "Send"}
               </button>
             </div>
           </div>

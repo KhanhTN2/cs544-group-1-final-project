@@ -87,8 +87,11 @@ public class AiChatService {
                         .map(message -> message.getRole() + ": " + message.getContent())
                         .collect(Collectors.joining("\n"));
         return String.join("\n\n",
-                "You are an assistant for software developers. Use ONLY provided system context when stating facts.",
-                "If context is missing, say what information is unavailable and what to check.",
+                "You are an assistant for software developers and IT support.",
+                "Answer the user's question directly in the first sentence. Be concise and practical.",
+                "If the question is about this system's current state (releases/tasks/discussions/notifications), use the provided system context as source of truth.",
+                "If the question is a general IT/dev question, you may answer from general technical knowledge.",
+                "If system-specific information is missing, say briefly what is unavailable and what to check.",
                 "Do not mention internal database names or storage technologies in the final answer.",
                 systemContext,
                 "Recent chat history:\n" + historyBlock,

@@ -82,7 +82,7 @@
       "id": 2,
       "targets": [
         {
-          "expr": "active_developers_count",
+          "expr": "max(active_developers_count)",
           "refId": "A"
         }
       ],
@@ -118,7 +118,7 @@
       "id": 4,
       "targets": [
         {
-          "expr": "increase(tasks_completed_total[1d])",
+          "expr": "sum(increase(tasks_completed_total[1d]))",
           "refId": "A"
         }
       ],
@@ -136,7 +136,7 @@
       "id": 5,
       "targets": [
         {
-          "expr": "rate(kafka_events_published_total[1m]) * 60",
+          "expr": "sum(rate(kafka_events_published_total[1m])) * 60",
           "refId": "A"
         }
       ],
@@ -154,11 +154,11 @@
       "id": 6,
       "targets": [
         {
-          "expr": "rate(ai_chat_requests_total[1m])",
+          "expr": "sum(rate(ai_chat_requests_total[1m]))",
           "refId": "A"
         },
         {
-          "expr": "rate(ai_chat_request_latency_seconds_sum[1m]) / rate(ai_chat_request_latency_seconds_count[1m])",
+          "expr": "sum(rate(ai_chat_request_latency_seconds_sum[1m])) / sum(rate(ai_chat_request_latency_seconds_count[1m]))",
           "refId": "B"
         }
       ],

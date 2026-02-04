@@ -260,15 +260,20 @@ button:disabled {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
   padding: 6px 10px;
   border-radius: 999px;
   background: var(--accent-soft);
   color: #9a3412;
   font-size: 0.8rem;
   font-weight: 600;
+  width: auto;
+  max-width: 100%;
 }
 
 .status {
@@ -324,6 +329,7 @@ button:disabled {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1fr);
+  align-items: start;
 }
 
 .panel {
@@ -333,6 +339,7 @@ button:disabled {
   background: #fffaf4;
   display: grid;
   gap: 12px;
+  align-content: start;
 }
 
 .panel-title {
@@ -343,6 +350,7 @@ button:disabled {
 .list {
   display: grid;
   gap: 8px;
+  align-content: start;
 }
 
 .list-item {
@@ -352,6 +360,7 @@ button:disabled {
   padding: 10px 12px;
   display: grid;
   gap: 6px;
+  align-content: start;
 }
 
 .list-item.active {
@@ -651,7 +660,7 @@ button:disabled {
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 50;
+  z-index: 40;
   width: auto;
   min-width: 68px;
   height: 68px;
@@ -663,6 +672,47 @@ button:disabled {
   border: 1px solid rgba(234, 88, 12, 0.4);
   background: linear-gradient(130deg, #ea580c, #fb923c);
   box-shadow: 0 16px 34px rgba(154, 52, 18, 0.35);
+}
+
+.metrics-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 96px;
+  z-index: 40;
+  width: auto;
+  min-width: 98px;
+  height: 56px;
+  border-radius: 999px;
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(15, 118, 110, 0.4);
+  background: linear-gradient(130deg, #0f766e, #14b8a6);
+  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.35);
+}
+
+.dashboard-popup {
+  position: fixed;
+  right: 20px;
+  bottom: 160px;
+  width: min(980px, calc(100vw - 24px));
+  height: min(76vh, 760px);
+  z-index: 48;
+  border-radius: 20px;
+  border: 1px solid rgba(39, 30, 21, 0.2);
+  background: #fffefb;
+  box-shadow: 0 24px 60px rgba(31, 24, 16, 0.26);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+.dashboard-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
 }
 
 .ai-fab:hover {
@@ -951,6 +1001,20 @@ button:disabled {
     width: calc(100vw - 20px);
     height: min(72vh, 640px);
     grid-template-columns: 1fr;
+  }
+
+  .metrics-fab {
+    right: 14px;
+    bottom: 84px;
+    height: 54px;
+    min-width: 86px;
+  }
+
+  .dashboard-popup {
+    right: 10px;
+    bottom: 146px;
+    width: calc(100vw - 20px);
+    height: min(70vh, 660px);
   }
 
   .chat-popup-sidebar {
