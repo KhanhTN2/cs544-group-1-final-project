@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.cs544.notification.event.EventEnvelope;
 import com.cs544.notification.event.HotfixTaskAddedEvent;
 import com.cs544.notification.event.StaleTaskDetectedEvent;
 import com.cs544.notification.event.TaskAssignedEvent;
@@ -68,7 +69,27 @@ public class NotificationEventHandler {
                 "Message: " + event.message(),
                 "Reported at: " + formatInstant(Instant.now())
         );
-        emailService.send("SystemErrorEvent", source, eventId, emailService.systemAlertRecipients(), subject, body, payload);
+        emailService.send("SystemErrorEvent", source, eventId, emailService.resolveRelatedRecipients(payload), subject, body, payload);
+    }
+
+    public void handleDeadLetterEvent(
+            String topic,
+            EventEnvelope<?> envelope,
+            Map<String, Object> payload,
+            String failureReason
+    ) {
+        String reason = failureReason == null || failureReason.isBlank() ? "unknown" : failureReason;
+        String subject = "Kafka DLQ event in " + topic;
+        String body = String.join("\n",
+                "An event was moved to the Dead Letter Queue.",
+                "Topic: " + topic,
+                "Event type: " + envelope.eventType(),
+                "Event id: " + envelope.id(),
+                "Source: " + envelope.source(),
+                "Failure reason: " + reason,
+                "Captured at: " + formatInstant(Instant.now())
+        );
+        emailService.send("DeadLetterEvent", envelope.source(), envelope.id(), emailService.resolveRelatedRecipients(payload), subject, body, payload);
     }
 
     private String formatInstant(Instant instant) {

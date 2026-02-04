@@ -1,7 +1,8 @@
 package com.cs544.aichat;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.emptyOrNullString;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,6 @@ class AiChatServiceIntegrationTest {
                 .post("http://localhost:" + port + "/api/chat")
                 .then()
                 .statusCode(200)
-                .body("reply", equalTo("AI reply to: Summarize"));
+                .body("reply", not(emptyOrNullString()));
     }
 }

@@ -59,6 +59,20 @@ public class NotificationEmailService {
         return new ArrayList<>(configured);
     }
 
+    public List<String> resolveRelatedRecipients(Map<String, Object> payload) {
+        if (payload != null) {
+            Object developerId = payload.get("developerId");
+            if (developerId != null && !String.valueOf(developerId).isBlank()) {
+                return List.of(resolveDeveloperEmail(String.valueOf(developerId)));
+            }
+            Object assigneeId = payload.get("assigneeId");
+            if (assigneeId != null && !String.valueOf(assigneeId).isBlank()) {
+                return List.of(resolveDeveloperEmail(String.valueOf(assigneeId)));
+            }
+        }
+        return List.of(properties.getDefaultRecipient());
+    }
+
     private void sendToRecipient(
             String eventType,
             String source,
@@ -70,6 +84,7 @@ public class NotificationEmailService {
     ) {
         String status = "SENT";
         String error = null;
+        MailException failure = null;
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(properties.getFrom());
@@ -80,6 +95,7 @@ public class NotificationEmailService {
         } catch (MailException ex) {
             status = "FAILED";
             error = ex.getMessage();
+            failure = ex;
         }
         NotificationLog log = new NotificationLog(
                 eventType,
@@ -94,5 +110,8 @@ public class NotificationEmailService {
                 payload
         );
         logRepository.save(log);
+        if (failure != null) {
+            throw failure;
+        }
     }
 }

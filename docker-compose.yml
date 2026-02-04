@@ -76,15 +76,51 @@ services:
     build: ./ai-chat-service
     container_name: ai-chat-service
     depends_on:
-      - kafka
-      - auth-service
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      release-service:
+        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
+      auth-service:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
+      MONGODB_URI: mongodb://mongodb:27017/ai-chat
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
       JWT_SECRET: 0123456789abcdef0123456789abcdef
       AUTH_VALIDATE: true
       AUTH_VALIDATE_URL: http://auth-service:8086
     ports:
       - "8083:8083"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "11434:11434"
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    restart: "no"
+    command: ["pull", "${OLLAMA_MODEL:-llama3.2:1b}"]
 
   notification-service:
     build: ./notification-service
@@ -153,3 +189,6 @@ services:
       - notification-service
     ports:
       - "8085:8085"
+
+volumes:
+  ollama-data:

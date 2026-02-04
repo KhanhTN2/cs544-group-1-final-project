@@ -43,7 +43,11 @@ const App = () => {
   const [discussionTaskId, setDiscussionTaskId] = useState("");
   const [discussionMessages, setDiscussionMessages] = useState([]);
   const [replyParentId, setReplyParentId] = useState("");
-  const [chatPrompt, setChatPrompt] = useState("Summarize");
+  const [chatPrompt, setChatPrompt] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatConversations, setChatConversations] = useState([]);
+  const [activeConversationId, setActiveConversationId] = useState("");
+  const [chatStreaming, setChatStreaming] = useState(false);
   const [status, setStatus] = useState("Choose a user to start your local session.");
   const [activeView, setActiveView] = useState("menu");
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
@@ -58,14 +62,23 @@ const App = () => {
   const activityListenerRef = useRef(null);
   const activityReconnectRef = useRef(null);
   const activityRetryRef = useRef(0);
+  const chatFeedRef = useRef(null);
 
   const activityTypes = [
     "TaskStarted",
     "TaskCompleted",
     "HotfixTaskAdded",
     "DiscussionMessageCreated",
+    "StaleTaskDetected",
+    "SystemErrorEvent",
   ];
   const activityLimit = 40;
+  const chatShortcuts = [
+    "Summarize my tasks",
+    "What is in progress for my team?",
+    "Show release blockers",
+    "Show latest notifications",
+  ];
 
   const updateStatus = (message) => setStatus(message);
   const showError = (message) => {
@@ -83,6 +96,20 @@ const App = () => {
     admin: "ADMIN",
     "dev-1": "DEVELOPER",
     "dev-2": "DEVELOPER",
+  };
+
+  const createConversation = (title = "New chat") => ({
+    id: `conv-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    title,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [],
+  });
+
+  const conversationTitleFromPrompt = (prompt) => {
+    const clean = (prompt || "").replace(/\s+/g, " ").trim();
+    if (!clean) return "New chat";
+    return clean.length > 36 ? `${clean.slice(0, 36)}...` : clean;
   };
 
   const handleLogin = () => {
@@ -118,9 +145,19 @@ const App = () => {
     setExpandedReleaseId("");
     setSelectedTaskReleaseId("");
     setSelectedTaskId("");
+    setChatOpen(false);
+    setChatConversations([]);
+    setActiveConversationId("");
+    setChatStreaming(false);
     setActiveView("menu");
     updateStatus("You have been signed out of the local session.");
   };
+
+  useEffect(() => {
+    if (!activeConversationId && chatConversations.length > 0) {
+      setActiveConversationId(chatConversations[0].id);
+    }
+  }, [activeConversationId, chatConversations]);
 
   useEffect(() => {
     document.body.dataset.view = activeView;
@@ -313,8 +350,10 @@ const App = () => {
         setSelectedReleaseId(data[0]?.id || "");
       }
       updateStatus("Releases loaded.");
+      return data;
     } catch (error) {
       showError(error.message);
+      return [];
     }
   };
 
@@ -518,8 +557,93 @@ const App = () => {
     }
   };
 
-  const submitChat = async () => {
+  const normalizeTaskId = (task) => task?.id || task?._id || "";
+
+  const loadConversationMessages = async (conversationId) => {
+    if (!conversationId) {
+      return [];
+    }
+    const token = await getJwt();
+    const response = await fetch(`${baseUrls.chat}/api/chat/conversations/${conversationId}/messages`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Chat messages load failed: ${response.status}`);
+    }
+    return await response.json();
+  };
+
+  const loadChatConversations = async () => {
+    const token = await getJwt();
+    const response = await fetch(`${baseUrls.chat}/api/chat/conversations`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Chat conversations load failed: ${response.status}`);
+    }
+    const conversations = await response.json();
+    if (!Array.isArray(conversations) || conversations.length === 0) {
+      const fallback = createConversation();
+      setChatConversations([fallback]);
+      setActiveConversationId(fallback.id);
+      return;
+    }
+    const firstId = conversations[0].conversationId;
+    const firstMessages = await loadConversationMessages(firstId);
+    const hydrated = conversations.map((conversation, index) => ({
+      id: conversation.conversationId,
+      title: conversation.title || "New chat",
+      createdAt: conversation.updatedAt || new Date().toISOString(),
+      updatedAt: conversation.updatedAt || new Date().toISOString(),
+      messages: index === 0 ? firstMessages : [],
+    }));
+    setChatConversations(hydrated);
+    setActiveConversationId(firstId);
+  };
+
+  const loadSingleConversation = async (conversationId) => {
+    const messages = await loadConversationMessages(conversationId);
+    setChatConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId ? { ...conversation, messages } : conversation
+      )
+    );
+  };
+
+  const submitChat = async (promptOverride) => {
+    const trimmedPrompt = (promptOverride || chatPrompt || "").trim();
+    if (!trimmedPrompt) {
+      updateStatus("Type a question first.");
+      return;
+    }
+    let targetConversationId = activeConversationId;
+    if (!targetConversationId) {
+      const seededConversation = createConversation(conversationTitleFromPrompt(trimmedPrompt));
+      targetConversationId = seededConversation.id;
+      setChatConversations([seededConversation]);
+      setActiveConversationId(seededConversation.id);
+    }
+
     updateStatus("Requesting AI chat response...");
+    const assistantMessageId = `assistant-${Date.now()}`;
+    const userMessage = { id: `user-${Date.now()}`, role: "user", content: trimmedPrompt, format: "text" };
+    const assistantMessage = { id: assistantMessageId, role: "assistant", content: "", format: "text" };
+    setChatConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === targetConversationId
+          ? {
+              ...conversation,
+              title:
+                conversation.messages.length === 0
+                  ? conversationTitleFromPrompt(trimmedPrompt)
+                  : conversation.title,
+              updatedAt: new Date().toISOString(),
+              messages: [...conversation.messages, userMessage, assistantMessage],
+            }
+          : conversation
+      )
+    );
+    setChatStreaming(true);
     try {
       const token = await getJwt();
       const response = await fetch(`${baseUrls.chat}/api/chat`, {
@@ -528,17 +652,82 @@ const App = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ prompt: chatPrompt }),
+        body: JSON.stringify({ prompt: trimmedPrompt, conversationId: targetConversationId }),
       });
       if (!response.ok) {
         throw new Error(`Chat request failed: ${response.status}`);
       }
-      const data = await response.json();
-      updateStatus(`AI response: ${JSON.stringify(data)}`);
+      const payload = await response.json();
+      const conversationIdFromServer = payload.conversationId || targetConversationId;
+      setActiveConversationId(conversationIdFromServer);
+      setChatConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === targetConversationId
+            ? {
+                ...conversation,
+                id: conversationIdFromServer,
+                updatedAt: new Date().toISOString(),
+                messages: conversation.messages.map((message) =>
+                  message.id === assistantMessageId
+                    ? {
+                        ...message,
+                        content: payload.reply || "",
+                        format: payload.format || "text",
+                      }
+                    : message
+                ),
+              }
+            : conversation
+        )
+      );
+      setChatPrompt("");
+      updateStatus("AI response completed.");
     } catch (error) {
       showError(error.message);
+      setChatConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === targetConversationId
+            ? {
+                ...conversation,
+                updatedAt: new Date().toISOString(),
+                messages: conversation.messages.map((message) =>
+                  message.id === assistantMessageId
+                    ? { ...message, content: "I could not complete that response.", format: "text" }
+                    : message
+                ),
+              }
+            : conversation
+        )
+      );
+    } finally {
+      setChatStreaming(false);
     }
   };
+
+  const startNewChat = () => {
+    const nextConversation = createConversation();
+    setChatConversations((prev) => [nextConversation, ...prev]);
+    setActiveConversationId(nextConversation.id);
+    setChatPrompt("");
+    updateStatus("Started a new chat.");
+  };
+
+  useEffect(() => {
+    if (chatFeedRef.current) {
+      chatFeedRef.current.scrollTop = chatFeedRef.current.scrollHeight;
+    }
+  }, [chatConversations, activeConversationId, chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen || !activeConversationId) {
+      return;
+    }
+    const selected = chatConversations.find((conversation) => conversation.id === activeConversationId);
+    if (!selected || selected.messages.length > 0) {
+      return;
+    }
+    loadSingleConversation(activeConversationId).catch((error) => showError(error.message));
+  }, [chatOpen, activeConversationId]);
 
   useEffect(() => {
     if (loggedIn) {
@@ -559,6 +748,16 @@ const App = () => {
 
   const isMenuVisible = loggedIn && activeView === "menu";
   const showFeature = (feature) => loggedIn && activeView === feature;
+  const openAiChat = () => {
+    if (!loggedIn) {
+      updateStatus("Sign in first to open AI chat.");
+      return;
+    }
+    setChatOpen(true);
+    loadChatConversations()
+      .then(() => updateStatus("AI chat opened."))
+      .catch((error) => showError(error.message));
+  };
 
   const menuItems = [
     { id: "release", label: "Manage releases", roles: ["ADMIN", "DEVELOPER"] },
@@ -575,7 +774,7 @@ const App = () => {
       : [];
   const selectedTask =
     selectedReleaseTasks.length > 0
-      ? selectedReleaseTasks.find((task) => task.id === selectedTaskId)
+      ? selectedReleaseTasks.find((task) => normalizeTaskId(task) === selectedTaskId)
       : null;
   const selectedReleaseCompletedAt = selectedTaskRelease
     ? selectedTaskRelease.completedAt
@@ -610,6 +809,52 @@ const App = () => {
   };
 
   const threadTree = buildThreadTree(discussionMessages || []);
+  const activeConversation =
+    chatConversations.find((conversation) => conversation.id === activeConversationId) ||
+    chatConversations[0] ||
+    null;
+  const chatMessages = activeConversation ? activeConversation.messages : [];
+  const orderedConversations = [...chatConversations].sort(
+    (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+  );
+
+  const openTaskFromChat = async (taskId, releaseId) => {
+    const normalizedTaskId = taskId || "";
+    if (!normalizedTaskId) {
+      return;
+    }
+    try {
+      const latestReleases = await loadReleases(false);
+      const targetRelease =
+        latestReleases.find((release) => release.id === releaseId) ||
+        latestReleases.find((release) =>
+          (release.tasks || []).some((task) => normalizeTaskId(task) === normalizedTaskId)
+        );
+      if (!targetRelease) {
+        updateStatus("Task exists in chat summary, but release data is not available.");
+        return;
+      }
+      setActiveView("release");
+      setSelectedReleaseId(targetRelease.id);
+      setExpandedReleaseId(targetRelease.id);
+      setSelectedTaskReleaseId(targetRelease.id);
+      setSelectedTaskId(normalizedTaskId);
+      setChatOpen(false);
+      updateStatus("Opened task from chat.");
+    } catch (error) {
+      showError(error.message);
+    }
+  };
+
+  const onChatFeedClick = (event) => {
+    const target = event.target.closest("[data-chat-task-id]");
+    if (!target) {
+      return;
+    }
+    const taskId = target.getAttribute("data-chat-task-id") || "";
+    const releaseId = target.getAttribute("data-chat-release-id") || "";
+    openTaskFromChat(taskId, releaseId);
+  };
 
   const renderThread = (nodes, depth = 0) => (
     <div className={depth === 0 ? "thread" : "thread-children"}>
@@ -794,6 +1039,11 @@ const App = () => {
                     updateStatus("Opened Mailhog inbox.");
                     return;
                   }
+                  if (item.id === "chat") {
+                    setChatOpen(true);
+                    updateStatus("AI chat opened.");
+                    return;
+                  }
                   setActiveView(item.id);
                 }}
               >
@@ -898,19 +1148,20 @@ const App = () => {
               )}
               {selectedTaskRelease &&
                 selectedReleaseTasks.map((task) => {
+                  const taskId = normalizeTaskId(task);
                   const taskTime = task.createdAt ? new Date(task.createdAt).getTime() : null;
                   const isHotfix =
                     selectedReleaseCompletedAt !== null &&
                     taskTime !== null &&
                     taskTime > selectedReleaseCompletedAt;
-                  const isSelected = selectedTaskId === task.id;
+                  const isSelected = selectedTaskId === taskId;
                   return (
                     <div
-                      key={task.id}
+                      key={taskId}
                       className={`task-row ${isSelected ? "selected" : ""}`}
                       onClick={() => {
                         setSelectedTaskReleaseId(selectedTaskRelease.id);
-                        setSelectedTaskId(task.id);
+                        setSelectedTaskId(taskId);
                       }}
                     >
                       <div className="inline">
@@ -1084,22 +1335,6 @@ const App = () => {
         </SectionCard>
       )}
 
-      {showFeature("chat") && (
-        <SectionCard title="AI chat">
-          <div className="inline">
-            <button className="ghost" onClick={() => setActiveView("menu")}>
-              Back to menu
-            </button>
-            <button className="secondary" onClick={handleLogout}>
-              Sign out
-            </button>
-          </div>
-          <label>Prompt</label>
-          <textarea rows="3" value={chatPrompt} onChange={(event) => setChatPrompt(event.target.value)}></textarea>
-          <button onClick={submitChat}>Ask AI</button>
-        </SectionCard>
-      )}
-
       {showFeature("notifications") && (
         <SectionCard title="Notifications">
           <div className="inline">
@@ -1150,6 +1385,93 @@ const App = () => {
                 Close
               </button>
               <button onClick={() => setIsErrorOpen(false)}>Okay</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <button className="ai-fab" onClick={openAiChat} aria-label="Open AI chat">
+        <span className="ai-fab-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M12 2.5 14 8l5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2Z" fill="currentColor" />
+          </svg>
+        </span>
+        <span className="ai-fab-text">AI</span>
+      </button>
+
+      {chatOpen && (
+        <div className="chat-popup">
+          <aside className="chat-popup-sidebar">
+            <button className="secondary chat-new-chat" onClick={startNewChat} disabled={chatStreaming}>
+              + New chat
+            </button>
+            <div className="chat-conversation-list">
+              {orderedConversations.map((conversation) => (
+                <button
+                  key={conversation.id}
+                  className={`chat-conversation-item ${
+                    activeConversation && activeConversation.id === conversation.id ? "active" : ""
+                  }`.trim()}
+                  onClick={() => {
+                    setActiveConversationId(conversation.id);
+                    if (!conversation.messages || conversation.messages.length === 0) {
+                      loadSingleConversation(conversation.id).catch((error) => showError(error.message));
+                    }
+                  }}
+                >
+                  <div className="chat-conversation-title">{conversation.title || "New chat"}</div>
+                  <div className="chat-conversation-meta">
+                    {new Date(conversation.updatedAt).toLocaleString()}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+          <div className="chat-popup-main">
+            <div className="chat-popup-header">
+              <div className="chat-popup-title">AI Assistant</div>
+              <button className="ghost" onClick={() => setChatOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="chat-popup-feed" ref={chatFeedRef} onClick={onChatFeedClick}>
+              {chatMessages.length === 0 && (
+                <div className="chat-popup-empty">
+                  <div>Ask about releases, tasks, discussions, or notifications.</div>
+                  <div className="chat-shortcut-list">
+                    {chatShortcuts.map((shortcut) => (
+                      <button
+                        key={shortcut}
+                        className="chat-shortcut"
+                        onClick={() => submitChat(shortcut)}
+                        disabled={chatStreaming}
+                      >
+                        {shortcut}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {chatMessages.map((message) => (
+                <div key={message.id} className={`chat-bubble ${message.role === "user" ? "user" : "assistant"}`}>
+                  {message.format === "html" && message.role === "assistant" ? (
+                    <div dangerouslySetInnerHTML={{ __html: message.content || "" }} />
+                  ) : (
+                    message.content || (message.role === "assistant" && chatStreaming ? "..." : "")
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="chat-popup-input">
+              <textarea
+                rows="2"
+                value={chatPrompt}
+                onChange={(event) => setChatPrompt(event.target.value)}
+                placeholder="Ask anything about the system..."
+              ></textarea>
+              <button onClick={submitChat} disabled={chatStreaming}>
+                {chatStreaming ? "Streaming..." : "Send"}
+              </button>
             </div>
           </div>
         </div>
