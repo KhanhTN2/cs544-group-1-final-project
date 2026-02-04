@@ -79,7 +79,7 @@ flowchart LR
     K -->|release.events + discussion.events + system.errors| ACT[Discussion Activity Stream]
     K -->|release.events + system.errors| NPROC[Notification Event Handler]
 
-    K -->|*.DLQ| DLQH[DLQ Consumers<br/>(Discussion + Notification)]
+    K -->|*.DLQ| DLQH["DLQ Consumers<br>Discussion + Notification"]
     DLQH -->|system.errors| K
 ```
 
