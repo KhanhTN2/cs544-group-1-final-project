@@ -28,22 +28,32 @@ public class JwtAuthFilter implements WebFilter {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String header = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        String token = null;
         if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+            token = header.substring(7);
+        } else {
+            token = exchange.getRequest().getQueryParams().getFirst("token");
+        }
+        final String resolvedToken = token;
+        if (resolvedToken != null && !resolvedToken.isBlank()) {
             Mono<Boolean> validated = validateEnabled
-                    ? authServiceClient.validate(token)
+                    ? authServiceClient.validate(resolvedToken)
                     : Mono.just(true);
             return validated.flatMap(valid -> {
                 if (!valid) {
                     exchange.getResponse().setStatusCode(org.springframework.http.HttpStatus.UNAUTHORIZED);
                     return exchange.getResponse().setComplete();
                 }
-                var claims = jwtUtil.parse(token);
+                var claims = jwtUtil.parse(resolvedToken);
                 String role = claims.get("role", String.class);
-                java.util.List<GrantedAuthority> authorities = role == null
-                        ? java.util.Collections.emptyList()
-                        : java.util.List.of(new SimpleGrantedAuthority("ROLE_" + role));
-                var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), token, authorities);
+                java.util.List<GrantedAuthority> authorities;
+                if (role == null || role.isBlank()) {
+                    authorities = java.util.Collections.emptyList();
+                } else {
+                    String normalizedRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+                    authorities = java.util.List.of(new SimpleGrantedAuthority(normalizedRole));
+                }
+                var auth = new UsernamePasswordAuthenticationToken(claims.getSubject(), resolvedToken, authorities);
                 return chain.filter(exchange)
                         .contextWrite(ReactiveSecurityContextHolder.withAuthentication(auth));
             });

@@ -1,4 +1,4 @@
-const { useEffect, useState } = React;
+const { useEffect, useState, useRef } = React;
 
 const baseUrls = {
   releases: "http://localhost:8081",
@@ -49,6 +49,23 @@ const App = () => {
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isErrorOpen, setIsErrorOpen] = useState(false);
+  const [activityEvents, setActivityEvents] = useState([]);
+  const [activityConnected, setActivityConnected] = useState(true);
+  const [activityError, setActivityError] = useState("");
+  const [activityFilter, setActivityFilter] = useState("ALL");
+  const activityStreamRef = useRef(null);
+  const activityRefreshRef = useRef(null);
+  const activityListenerRef = useRef(null);
+  const activityReconnectRef = useRef(null);
+  const activityRetryRef = useRef(0);
+
+  const activityTypes = [
+    "TaskStarted",
+    "TaskCompleted",
+    "HotfixTaskAdded",
+    "DiscussionMessageCreated",
+  ];
+  const activityLimit = 40;
 
   const updateStatus = (message) => setStatus(message);
   const showError = (message) => {
@@ -82,6 +99,18 @@ const App = () => {
   };
 
   const handleLogout = () => {
+    if (activityStreamRef.current) {
+      activityStreamRef.current.close();
+      activityStreamRef.current = null;
+    }
+    if (activityReconnectRef.current) {
+      clearTimeout(activityReconnectRef.current);
+      activityReconnectRef.current = null;
+    }
+    activityRetryRef.current = 0;
+    setActivityConnected(false);
+    setActivityError("");
+    setActivityEvents([]);
     setLoggedIn(false);
     setTokens({});
     setReleases([]);
@@ -178,6 +207,95 @@ const App = () => {
   };
 
   const getJwt = async () => tokens.auth || (await requestAuthToken());
+
+  const scheduleReleaseRefresh = () => {
+    if (activityRefreshRef.current) {
+      clearTimeout(activityRefreshRef.current);
+    }
+    activityRefreshRef.current = setTimeout(() => {
+      loadReleases(false);
+    }, 500);
+  };
+
+  const startActivityStream = async () => {
+    if (activityStreamRef.current) {
+      return;
+    }
+    try {
+      const token = await getJwt();
+      const streamUrl = `${baseUrls.discussions}/activity/stream?token=${encodeURIComponent(token)}`;
+      const source = new EventSource(streamUrl);
+      const handleActivityEvent = (event) => {
+        if (!event || !event.data) {
+          return;
+        }
+        let payload = null;
+        try {
+          payload = JSON.parse(event.data);
+        } catch (error) {
+          payload = null;
+        }
+        if (!payload) {
+          return;
+        }
+        const timestamp = payload.timestamp ? new Date(payload.timestamp) : new Date();
+        const entry = {
+          id: `${timestamp.getTime()}-${Math.random().toString(16).slice(2)}`,
+          type: payload.type || event.type || "Activity",
+          message: payload.message || "New activity received.",
+          timestamp,
+          payload: payload.payload || {},
+        };
+        if (entry.type && !activityTypes.includes(entry.type)) {
+          activityTypes.push(entry.type);
+        }
+        setActivityEvents((prev) => [entry, ...prev].slice(0, activityLimit));
+        scheduleReleaseRefresh();
+      };
+      activityListenerRef.current = handleActivityEvent;
+      activityTypes.forEach((type) => source.addEventListener(type, handleActivityEvent));
+      source.onmessage = handleActivityEvent;
+      source.onopen = () => {
+        setActivityConnected(true);
+        setActivityError("");
+        activityRetryRef.current = 0;
+      };
+      source.onerror = () => {
+        setActivityConnected(false);
+        setActivityError("Activity stream disconnected. Reconnecting...");
+        if (activityStreamRef.current) {
+          activityStreamRef.current.close();
+          activityStreamRef.current = null;
+        }
+        if (!activityReconnectRef.current && loggedIn) {
+          const nextDelay = Math.min(10000, 500 * Math.pow(2, activityRetryRef.current));
+          activityRetryRef.current += 1;
+          activityReconnectRef.current = setTimeout(() => {
+            activityReconnectRef.current = null;
+            startActivityStream();
+          }, nextDelay);
+        }
+      };
+      activityStreamRef.current = source;
+    } catch (error) {
+      setActivityConnected(false);
+      setActivityError("Unable to open activity stream.");
+      showError(error.message);
+    }
+  };
+
+  const stopActivityStream = () => {
+    if (activityStreamRef.current) {
+      activityStreamRef.current.close();
+      activityStreamRef.current = null;
+    }
+    if (activityReconnectRef.current) {
+      clearTimeout(activityReconnectRef.current);
+      activityReconnectRef.current = null;
+    }
+    activityRetryRef.current = 0;
+    setActivityConnected(false);
+  };
 
   const loadReleases = async (selectFirst = true) => {
     updateStatus("Loading releases...");
@@ -423,8 +541,13 @@ const App = () => {
   };
 
   useEffect(() => {
-    if (loggedIn && activeView === "release") {
-      loadReleases();
+    if (loggedIn) {
+      startActivityStream();
+      if (activeView === "release") {
+        loadReleases();
+      }
+    } else {
+      stopActivityStream();
     }
   }, [loggedIn, activeView]);
 
@@ -439,7 +562,6 @@ const App = () => {
 
   const menuItems = [
     { id: "release", label: "Manage releases", roles: ["ADMIN", "DEVELOPER"] },
-    { id: "discussion", label: "Post discussion", roles: ["ADMIN", "DEVELOPER"] },
     { id: "chat", label: "Chat with AI", roles: ["ADMIN", "DEVELOPER"] },
     { id: "notifications", label: "Send system alert", roles: ["ADMIN", "DEVELOPER"] },
     { id: "email", label: "Open inbox", roles: ["ADMIN", "DEVELOPER"] },
@@ -516,8 +638,106 @@ const App = () => {
     </div>
   );
 
+  const filteredActivityEvents =
+    activityFilter === "ALL"
+      ? activityEvents
+      : activityEvents.filter((event) => event.type === activityFilter);
+
+  const activityTypeOptions = ["ALL", ...activityTypes];
+
+  const ActivityWall = ({ showControls }) => (
+    <div className="activity-wall hero-wall">
+      <div className="activity-header">
+        <div>
+          <div className="panel-title">Wall of Activity</div>
+          <div className="list-meta">
+            {loggedIn
+              ? activityConnected
+                ? "Live stream connected."
+                : "Waiting for stream."
+              : "Sign in to connect the live stream."}
+            {activityError ? ` ${activityError}` : ""}
+          </div>
+        </div>
+        <div className="activity-status">
+          {loggedIn && (
+            <div className={`status-check ${activityConnected ? "on" : "off"}`}>
+              <span className="status-dot" aria-hidden="true"></span>
+              <span>{activityConnected ? "Connected" : "Disconnected"}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="activity-controls">
+        <div className="activity-filter">
+          <label>Filter</label>
+          <select
+            value={activityFilter}
+            onChange={(event) => setActivityFilter(event.target.value)}
+          >
+            {activityTypeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        {showControls && (
+          <>
+            <button
+              className="secondary"
+              onClick={() => {
+                setActivityEvents([]);
+              }}
+            >
+              Clear
+            </button>
+            <button className="secondary" onClick={() => loadReleases(false)}>
+              Refresh
+            </button>
+          </>
+        )}
+      </div>
+      <div className="activity-list">
+        {filteredActivityEvents.length === 0 && (
+          <div className="activity-empty">
+            {loggedIn
+              ? "Trigger a task or discussion event to populate the feed."
+              : "Sign in to load live activity events."}
+          </div>
+        )}
+        {filteredActivityEvents.map((event) => (
+          <div key={event.id} className="activity-item">
+            <div className="activity-meta">
+              <span className="badge">{event.type}</span>
+              <span className="list-meta">
+                {event.timestamp ? event.timestamp.toLocaleString() : ""}
+              </span>
+            </div>
+            <div className="activity-message">{event.message}</div>
+            {event.payload && Object.keys(event.payload).length > 0 && (
+              <div className="activity-payload">
+                {Object.entries(event.payload)
+                  .slice(0, 4)
+                  .map(([key, value]) => (
+                    <span key={key}>
+                      {key}: {value === null || value === undefined ? "" : String(value)}
+                    </span>
+                  ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const heroSlot =
+    typeof document !== "undefined" ? document.getElementById("activity-wall-hero") : null;
+
   return (
     <>
+      {loggedIn && heroSlot && ReactDOM.createPortal(<ActivityWall showControls={false} />, heroSlot)}
       <div className="status-bar">
         <div className="status-bar-inner">
           <div className="status-bar-label">Status</div>
@@ -700,11 +920,11 @@ const App = () => {
                         <span className={`badge ${task.status === "COMPLETED" ? "" : "warning"}`}>
                           {task.status}
                         </span>
+                        {isHotfix && <span className="badge warning">Hotfix</span>}
                         {selectedTaskRelease && (
                           <span className="list-meta">Release: {selectedTaskRelease.name}</span>
                         )}
                         <span className="list-meta">Assignee: {task.assigneeId}</span>
-                        {isHotfix && <span className="badge warning">Hotfix</span>}
                       </div>
                       <div className="list-meta">
                         {task.description || "No description provided."}

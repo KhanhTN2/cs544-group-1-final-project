@@ -58,9 +58,15 @@ public class ActivityEventListener {
         String eventType = envelope.eventType();
         Map<String, Object> payload = objectMapper.convertValue(envelope.payload(), Map.class);
         if ("DiscussionMessageCreated".equals(eventType)) {
+            String author = String.valueOf(payload.get("author"));
+            String content = String.valueOf(payload.get("message"));
+            String summary = content == null ? "" : content.trim();
+            if (summary.length() > 140) {
+                summary = summary.substring(0, 140) + "...";
+            }
             activityStreamService.emit(new ActivityStreamService.ActivityEvent(
                     "DiscussionMessageCreated",
-                    "New discussion message from " + payload.get("author"),
+                    "New message from " + author + ": " + summary,
                     Instant.now(),
                     payload
             ));

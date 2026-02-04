@@ -31,7 +31,7 @@ public class NotificationController {
     }
 
     @PostMapping("/system-error")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','DEVELOPER')")
     public ResponseEntity<SystemErrorAlert> publishSystemError(@RequestBody SystemErrorEvent request) {
         producer.publishSystemError(request);
         SystemErrorAlert alert = streamService.recordError(request);

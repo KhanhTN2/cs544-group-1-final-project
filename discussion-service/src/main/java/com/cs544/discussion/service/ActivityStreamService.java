@@ -23,14 +23,17 @@ public class ActivityStreamService {
     }
 
     public void emitDiscussion(DiscussionMessage message) {
+        String content = message.getMessage() == null ? "" : message.getMessage().trim();
+        String summary = content.length() > 140 ? content.substring(0, 140) + "..." : content;
         emit(new ActivityEvent(
                 "DiscussionMessageCreated",
-                "New discussion message from " + message.getAuthor(),
+                "New message from " + message.getAuthor() + ": " + summary,
                 Instant.now(),
                 Map.of(
                         "releaseId", message.getReleaseId(),
                         "taskId", message.getTaskId(),
-                        "messageId", message.getId()
+                        "messageId", message.getId(),
+                        "message", message.getMessage()
                 )
         ));
     }

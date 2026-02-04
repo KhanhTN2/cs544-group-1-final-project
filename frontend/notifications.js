@@ -176,7 +176,6 @@ createApp({
     onMounted(() => {
       loadLastError();
       loadAlerts();
-      startStream();
     });
 
     onBeforeUnmount(() => {

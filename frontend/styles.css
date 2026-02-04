@@ -159,6 +159,11 @@ body[data-view="notifications"] #vue-root {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.hero-slot {
+  display: grid;
+  align-items: start;
+}
+
 .card {
   background: var(--surface-strong);
   border-radius: 22px;
@@ -408,6 +413,146 @@ button:disabled {
   height: 1px;
   background: rgba(39, 30, 21, 0.1);
   margin: 8px 0;
+}
+
+.activity-wall {
+  margin-top: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(39, 30, 21, 0.12);
+  background: #fffaf4;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.hero-wall {
+  margin-top: 0;
+  min-height: 320px;
+}
+
+.activity-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.activity-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.status-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: #fff;
+  border: 1px solid rgba(39, 30, 21, 0.16);
+  color: var(--ink-soft);
+}
+
+.status-check.on {
+  color: #065f46;
+  background: #ecfdf3;
+  border-color: rgba(6, 95, 70, 0.3);
+}
+
+.status-check.off {
+  color: #9a3412;
+  background: #fff7ed;
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(6, 95, 70, 0.15);
+}
+
+.status-check.off .status-dot {
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.activity-controls {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.activity-filter {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.activity-filter label {
+  margin-bottom: 0;
+}
+
+.activity-filter select {
+  background: #fff;
+}
+
+.activity-list {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.activity-item {
+  border-radius: 14px;
+  border: 1px solid rgba(39, 30, 21, 0.12);
+  background: #fff;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.activity-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.activity-message {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.activity-payload {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.activity-payload span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #9a3412;
+}
+
+.activity-empty {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  padding: 10px 4px;
 }
 
 .modal-backdrop {

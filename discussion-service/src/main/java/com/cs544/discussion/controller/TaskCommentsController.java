@@ -57,7 +57,6 @@ public class TaskCommentsController {
                     request.message()
             ));
             eventProducer.publishMessageCreated(message);
-            activityStreamService.emitDiscussion(message);
             return ResponseEntity.ok(message);
         });
     }
@@ -89,7 +88,6 @@ public class TaskCommentsController {
                     request.message()
             ));
             eventProducer.publishMessageCreated(message);
-            activityStreamService.emitDiscussion(message);
             return ResponseEntity.ok(message);
         });
     }
