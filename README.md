@@ -32,6 +32,12 @@ Start everything with Docker:
 docker compose up --build
 ```
 
+Run tests on demand (separate profile):
+
+```bash
+docker compose --profile test up --build --abort-on-container-exit --exit-code-from tests
+```
+
 Optional: prebuild service jars before compose:
 
 ```bash

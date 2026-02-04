@@ -10,28 +10,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  maven-tests:
+  compose-tests:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        service:
-          - auth-service
-          - release-service
-          - discussion-service
-          - ai-chat-service
-          - notification-service
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run tests (${{ matrix.service }})
-        run: mvn -B -ntp -f ${{ matrix.service }}/pom.xml test
+      - name: Run tests via Docker Compose
+        run: docker compose --profile test up --build --abort-on-container-exit --exit-code-from tests

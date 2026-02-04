@@ -3,6 +3,8 @@ package com.cs544.discussion;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,8 +14,6 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.MongoDBContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import io.jsonwebtoken.Jwts;
@@ -23,12 +23,9 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
 class DiscussionServiceIntegrationTest {
-    @Container
-    static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.3"));
-    @Container
-    static MongoDBContainer mongo = new MongoDBContainer(DockerImageName.parse("mongo:6.0"));
+    static KafkaContainer kafka;
+    static MongoDBContainer mongo;
 
     @LocalServerPort
     int port;
@@ -37,9 +34,30 @@ class DiscussionServiceIntegrationTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-        registry.add("spring.data.mongodb.uri", mongo::getReplicaSetUrl);
+        registry.add("spring.kafka.bootstrap-servers", () -> envOrDefault("KAFKA_BOOTSTRAP", bootstrapKafka()));
+        registry.add("spring.data.mongodb.uri", () -> envOrDefault("MONGODB_URI", mongoUri()));
         registry.add("security.jwt.secret", () -> "0123456789abcdef0123456789abcdef");
+    }
+
+    @BeforeAll
+    static void startContainers() {
+        if (hasEnv("KAFKA_BOOTSTRAP") && hasEnv("MONGODB_URI")) {
+            return;
+        }
+        kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.3"));
+        mongo = new MongoDBContainer(DockerImageName.parse("mongo:6.0"));
+        kafka.start();
+        mongo.start();
+    }
+
+    @AfterAll
+    static void stopContainers() {
+        if (kafka != null) {
+            kafka.stop();
+        }
+        if (mongo != null) {
+            mongo.stop();
+        }
     }
 
     @BeforeEach
@@ -71,5 +89,23 @@ class DiscussionServiceIntegrationTest {
                 .then()
                 .statusCode(200)
                 .body("size()", equalTo(1));
+    }
+
+    private static boolean hasEnv(String key) {
+        String value = System.getenv(key);
+        return value != null && !value.isBlank();
+    }
+
+    private static String envOrDefault(String key, String fallback) {
+        String value = System.getenv(key);
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static String bootstrapKafka() {
+        return kafka == null ? "" : kafka.getBootstrapServers();
+    }
+
+    private static String mongoUri() {
+        return mongo == null ? "" : mongo.getReplicaSetUrl();
     }
 }

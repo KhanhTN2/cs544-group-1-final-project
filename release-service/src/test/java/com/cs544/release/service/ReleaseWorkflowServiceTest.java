@@ -80,8 +80,6 @@ class ReleaseWorkflowServiceTest {
         Task task2 = task("t2", "dev-1", 2, TaskStatus.TODO);
         release.setTasks(List.of(task1, task2));
         when(releaseRepository.findById("rel-1")).thenReturn(Optional.of(release));
-        when(releaseRepository.findByAssigneeAndTaskStatus("dev-1", TaskStatus.IN_PROCESS))
-                .thenReturn(List.of());
 
         assertThatThrownBy(() -> service.startTask("rel-1", "t2", "dev-1"))
                 .isInstanceOf(IllegalArgumentException.class)

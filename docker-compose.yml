@@ -12,7 +12,8 @@ services:
     image: confluentinc/cp-kafka:7.5.3
     container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_started
     ports:
       - "9092:9092"
     environment:
@@ -33,7 +34,8 @@ services:
     build: ./auth-service
     container_name: auth-service
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_started
     environment:
       MONGODB_URI: mongodb://mongodb:27017/auth
       JWT_SECRET: 0123456789abcdef0123456789abcdef
@@ -44,9 +46,12 @@ services:
     build: ./release-service
     container_name: release-service
     depends_on:
-      - kafka
-      - mongodb
-      - auth-service
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      auth-service:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       MONGODB_URI: mongodb://mongodb:27017/releases
@@ -60,9 +65,12 @@ services:
     build: ./discussion-service
     container_name: discussion-service
     depends_on:
-      - kafka
-      - mongodb
-      - auth-service
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      auth-service:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       MONGODB_URI: mongodb://mongodb:27017/discussions
@@ -126,10 +134,14 @@ services:
     build: ./notification-service
     container_name: notification-service
     depends_on:
-      - kafka
-      - mongodb
-      - mailhog
-      - auth-service
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      mailhog:
+        condition: service_started
+      auth-service:
+        condition: service_started
     environment:
       KAFKA_BOOTSTRAP: kafka:9092
       MONGODB_URI: mongodb://mongodb:27017/notifications
@@ -172,7 +184,8 @@ services:
     image: grafana/grafana:10.2.2
     container_name: grafana
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_started
     environment:
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/system-overview.json
       GF_AUTH_ANONYMOUS_ENABLED: "true"
@@ -188,12 +201,46 @@ services:
     build: ./frontend
     container_name: frontend
     depends_on:
-      - release-service
-      - discussion-service
-      - ai-chat-service
-      - notification-service
+      release-service:
+        condition: service_started
+      discussion-service:
+        condition: service_started
+      ai-chat-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
     ports:
       - "8085:8085"
+
+  tests:
+    image: maven:3.9.6-eclipse-temurin-21
+    container_name: test-runner
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      zookeeper:
+        condition: service_started
+      kafka:
+        condition: service_started
+      mongodb:
+        condition: service_started
+    environment:
+      MAVEN_OPTS: -Dmaven.repo.local=/workspace/.m2
+    command:
+      - bash
+      - -lc
+      - |
+        export KAFKA_BOOTSTRAP=kafka:9092
+        mvn -B -ntp -f auth-service/pom.xml test
+        MONGODB_URI=mongodb://mongodb:27017/releases mvn -B -ntp -f release-service/pom.xml test
+        MONGODB_URI=mongodb://mongodb:27017/discussions mvn -B -ntp -f discussion-service/pom.xml test
+        MONGODB_URI=mongodb://mongodb:27017/ai-chat mvn -B -ntp -f ai-chat-service/pom.xml test
+        MONGODB_URI=mongodb://mongodb:27017/notifications mvn -B -ntp -f notification-service/pom.xml test
+    restart: "no"
+    profiles:
+      - test
 
 volumes:
   ollama-data:
